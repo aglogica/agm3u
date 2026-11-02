@@ -1,0 +1,2721 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgM3U Player</title>
+    <!-- Hls.js Bibliothek für das Abspielen von .m3u8 IPTV Streams laden -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+        :root {
+            --bg-color: #121214;
+            --card-bg: #1c1c1f;
+            --border-color: #3f3f46;
+            --text-color: #e3e3e6;
+            --accent-color: #ef4444;
+            --tab-inactive: #2a2a30;
+            --menu-bg: #2a2a30;
+            --control-height: 32px;
+        }
+
+        body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; box-sizing: border-box; font-family: sans-serif; margin: 0; padding: 5px 15px 15px; background: var(--bg-color); color: var(--text-color); user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+        input, textarea, [contenteditable="true"] { user-select: text; -webkit-user-select: text; -webkit-touch-callout: default; }
+        
+        /* Flex Header mit Titel links, Timer-Status und Kebab rechts */
+        .header-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; border-bottom: 1px solid var(--border-color); padding-bottom: 0; position: relative; }
+        .header-title { font-size: 1.0rem; font-weight: bold; line-height: 1.1; color: #fff; margin: 0; }
+        .current-stream-info { appearance: none; -webkit-appearance: none; min-height: 1.2em; margin: 0 0 6px; padding: 4px 8px; border: 0; background: transparent; color: #a1a1aa; font: inherit; font-size: 0.8rem; line-height: 1.2; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+        .current-stream-info.is-playing { border-radius: 6px; background: var(--accent-color); color: #fff; }
+        .current-stream-info:disabled { opacity: 1; cursor: default; }
+        
+        .header-controls { display: flex; align-items: center; gap: 12px; }
+        .status-container { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+        
+        #timerStatus, #shuffleStatus { font-size: 0.9rem; color: #a1a1aa; padding: 4px 6px; border-radius: 4px; cursor: pointer; transition: background 0.2s; user-select: none; display: flex; align-items: center; gap: 4px; }
+        #timerStatus:hover, #shuffleStatus:hover { background: rgba(255, 255, 255, 0.1); }
+        
+        @keyframes timerBlink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+        .timer-paused { animation: timerBlink 1.5s infinite; color: #f59e0b !important; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .icon-spin { display: inline-block; /*animation: spin 4s linear infinite;*/ }
+        @keyframes flip { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(-1); } }
+        .icon-flip { display: inline-block; /*animation: flip 2s ease-in-out infinite;*/ }
+        
+        .kebab-btn { background: none; border: none; cursor: pointer; padding: 4px; outline: none; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background 0.2s; z-index: 101; }
+        .kebab-btn svg { fill: var(--accent-color); width: 20px; height: 20px; }
+        .kebab-btn:hover { background: rgba(239, 68, 68, 0.1); }
+        
+        .dropdown-menu { display: none; position: absolute; top: calc(100% + 5px); right: 0; background: var(--menu-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 15px; box-shadow: 0 10px 15px rgba(0,0,0,0.5); z-index: 105; min-width: 280px; box-sizing: border-box; }
+        .dropdown-menu.show { display: block !important; }
+        .menu-title { font-size: 0.9rem; font-weight: bold; margin: 0 0 12px 0; color: #fff; border-bottom: 1px solid var(--border-color); padding-bottom: 6px; }
+        .menu-label { display: block; font-size: 0.8rem; color: #a1a1aa; margin-bottom: 5px; text-align: left; }
+        
+        .timer-input-row { display: flex; gap: 6px; margin-bottom: 12px; width: 100%; }
+        .timer-number-input { flex-grow: 1; padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background: #2a2a30; color: #fff; text-align: center; font-size: 0.9rem; }
+        .timer-set-btn { background: var(--accent-color); color: #fff; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: bold; }
+        .timer-set-btn:hover { background: #dc2626; }
+        .wake-lock-status { min-height: 1.2em; margin: -6px 0 12px; color: #a1a1aa; font-size: 0.75rem; line-height: 1.4; }
+        
+        input[type="file"] { width: 100%; }
+        input[type="file"]::file-selector-button { background: #2a2a30; color: #fff; border: 1px solid var(--border-color); padding: 8px 16px; border-radius: 6px; cursor: pointer; width: 100%; margin-bottom: 10px; }
+        #fileNameDisplay { display: block; font-size: 0.85rem; color: #a1a1aa; font-style: italic; word-break: break-all; margin-bottom: 5px; }
+        
+        /* Suchleiste */
+        .search-container { flex: 0 0 auto; margin-bottom: 0; width: 100%; }
+        #searchBar { width: 100%; height: var(--control-height); padding: 0 12px; border-radius: 8px; border: 1px solid var(--accent-color); background: rgba(239, 68, 68, 0.14); color: #fff; box-sizing: border-box; }
+        #searchBar:focus { outline: 2px solid rgba(239, 68, 68, 0.35); outline-offset: 1px; }
+
+        .radio-search-form { display: flex; flex: 0 0 auto; gap: 8px; height: var(--control-height); margin-top: 8px; }
+        #radioSearchInput { flex: 1; min-width: 0; height: 100%; padding: 0 12px; border-radius: 8px; border: 1px solid var(--accent-color); background: rgba(239, 68, 68, 0.14); color: #fff; box-sizing: border-box; }
+        #radioSearchInput:focus { outline: 2px solid rgba(239, 68, 68, 0.35); outline-offset: 1px; }
+        #radioSearchButton { height: 100%; }
+        .radio-search-btn { height: var(--control-height); padding: 0 16px; border: none; border-radius: 8px; background: var(--accent-color); color: #fff; font-weight: bold; cursor: pointer; box-sizing: border-box; }
+        .radio-search-btn:disabled, .radio-insert-btn:disabled, .radio-insert-all-btn:disabled { opacity: 0.6; cursor: wait; }
+        .radio-search-status { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+        .radio-results { list-style: none; padding: 0; margin: 0; }
+        .radio-station { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 5px 12px; margin-bottom: 5px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--card-bg); position: relative; }
+        .radio-station.menu-open { z-index: 10; }
+        .radio-station.is-playing { background: var(--accent-color); border-color: var(--accent-color); }
+        .radio-station.is-playing .radio-station-details { color: #fff; }
+        .radio-station.is-paused { background: #5b3b24; border-color: #8b5e3c; }
+        .radio-station.is-paused .radio-station-details { color: #f0d7c2; }
+        .radio-station-info { min-width: 0; }
+        .radio-station-info[role="button"] { cursor: pointer; }
+        .radio-station-name { display: -webkit-box; color: #fff; font-weight: bold; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+        .radio-station-details { display: block; margin-top: 3px; color: #a1a1aa; font-size: 0.8rem; overflow-wrap: anywhere; }
+        .radio-station-menu { display: none; position: absolute; z-index: 20; top: calc(100% - 4px); left: 8px; width: min(280px, calc(100% - 16px)); padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--menu-bg); box-shadow: 0 10px 15px rgba(0,0,0,0.5); box-sizing: border-box; }
+        .radio-station-menu.show { display: block; }
+        .radio-station-menu-title { margin: 0 0 8px; padding: 2px 4px 8px; border-bottom: 1px solid var(--border-color); color: #fff; font-size: 0.9rem; font-weight: bold; overflow-wrap: anywhere; }
+        .radio-insert-btn, .radio-insert-all-btn, .radio-info-btn, .radio-homepage-btn { width: 100%; padding: 9px 10px; border: 0; border-radius: 6px; background: transparent; color: #e3e3e6; text-align: left; cursor: pointer; }
+        .radio-insert-btn:hover:not(:disabled), .radio-insert-all-btn:hover:not(:disabled), .radio-info-btn:hover, .radio-homepage-btn:hover { background: rgba(255,255,255,0.1); }
+        .radio-insert-btn:disabled, .radio-insert-all-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .radio-insert-btn { transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.2s; }
+        .radio-insert-btn.is-inserted { background: #166534; color: #dcfce7; }
+        .radio-insert-btn.is-inserted svg { animation: insert-confirm 0.25s ease-out; }
+        .radio-station.is-inserted { border-color: rgba(34, 197, 94, 0.65); }
+        @keyframes insert-confirm { 50% { transform: scale(1.2); } }
+        .radio-insert-btn svg { width: 20px; height: 20px; fill: currentColor; vertical-align: middle; margin-right: 7px; }
+        .radio-confirm-dialog { width: min(420px, calc(100vw - 40px)); padding: 20px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--card-bg); color: var(--text-color); box-shadow: 0 10px 25px rgba(0,0,0,0.6); box-sizing: border-box; }
+        .radio-confirm-dialog::backdrop { background: rgba(0,0,0,0.65); }
+        .radio-confirm-dialog p { margin: 0 0 20px; line-height: 1.5; }
+        .radio-confirm-actions { display: flex; justify-content: flex-end; gap: 10px; }
+        .radio-confirm-actions button { min-width: 76px; padding: 9px 16px; border: 0; border-radius: 6px; color: #fff; font-weight: bold; cursor: pointer; }
+        .radio-confirm-yes { background: var(--accent-color); }
+        .radio-confirm-no { background: #3f3f46; }
+        #radioLoadMoreButton { display: block; margin: 10px auto 0; padding: 0 16px; }
+        #radioLoadMoreButton[hidden] { display: none; }
+
+        .app-layout { display: flex; flex: 1 1 0; flex-direction: row; gap: 15px; min-height: 0; }
+        .navigation-column, .media-column { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+        .navigation-column { flex: 1 1 0; }
+        .media-column { flex: 2 1 0; gap: 8px; }
+
+        /* Tabs Navigation Layout */
+        .tabs-nav { display: flex; flex: 0 0 auto; gap: 4px; height: 34px; margin-top: 8px; padding: 2px; border: 1px solid var(--border-color); border-radius: 8px; background: #17171a; box-sizing: border-box; position: relative; }
+        .tab-btn { flex: 1; min-width: 0; padding: 0 4px; background: transparent; border: none; color: #a1a1aa; font-size: 0.9rem; border-radius: 6px; cursor: pointer; transition: background 0.2s, color 0.2s; font-weight: bold; display: flex; align-items: center; justify-content: center; }
+        .tab-label { min-width: 0; }
+        .tab-btn.active { background: var(--accent-color); color: #fff; }
+        @media (max-width: 480px) {
+            .tab-btn { padding: 0 4px; font-size: 0.85rem; }
+            .tab-label { white-space: nowrap; }
+        }
+        .playlist-context-menu { display: none; position: absolute; bottom: calc(100% + 6px); left: 4px; z-index: 110; width: min(280px, calc(100vw - 30px)); padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--menu-bg); box-shadow: 0 10px 15px rgba(0,0,0,0.5); box-sizing: border-box; }
+        .playlist-context-menu.show { display: block; }
+        .playlist-context-title { margin-bottom: 10px; color: #fff; font-size: 0.9rem; font-weight: bold; overflow-wrap: anywhere; }
+        .playlist-save-btn { width: 100%; padding: 9px 12px; border: 0; border-radius: 6px; background: var(--accent-color); color: #fff; font-weight: bold; text-align: left; cursor: pointer; }
+        .playlist-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .playlist-new-btn { width: 100%; margin-top: 6px; padding: 9px 12px; border: 0; border-radius: 6px; background: transparent; color: #e3e3e6; font-weight: bold; text-align: left; cursor: pointer; }
+        .playlist-new-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.1); }
+        .playlist-new-btn:disabled { opacity: 0.5; cursor: wait; }
+        .playlist-save-status { margin: 8px 0 0; color: #a1a1aa; font-size: 0.8rem; overflow-wrap: anywhere; }
+
+        /* Tab Content */
+        .tab-panels { display: flex; flex: 1 1 0; flex-direction: column; min-height: 0; }
+        .tab-content { display: none; }
+        .tab-content.active { display: flex; flex: 1 1 0; flex-direction: column; min-height: 0; }
+        #radioSearchForm, #radioLoadMoreButton { flex: 0 0 auto; }
+        #radioResultsScroll, #directory-list { flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+        #radioResultsScroll { margin-top: 6px; }
+
+        /* Player Split Layout */
+        .player-container { display: flex; flex: 1 1 0; flex-direction: column; min-height: 0; }
+        .playlist-wrapper { display: flex; flex: 1 1 0; flex-direction: column; gap: 6px; width: 100%; min-height: 0; }
+        #playlistSelect { display: none; }
+        .playlist-list-view { display: flex; flex: 1 1 0; flex-direction: column; gap: 5px; width: 100%; min-height: 0; margin: 6px 0 0; padding: 0 4px 0 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; box-sizing: border-box; list-style: none; }
+        .playlist-track { display: -webkit-box; width: 100%; flex: 0 0 auto; padding: 5px 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--card-bg); color: var(--text-color); font: inherit; text-align: left; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; cursor: pointer; transition: background 0.2s, border-color 0.2s; }
+        .playlist-track:hover { background: #242429; }
+        .playlist-track.is-playing { background: var(--accent-color); border-color: var(--accent-color); color: #fff; }
+        .playlist-track.is-paused { background: #244b63; border-color: #376985; color: #e0f2fe; }
+        .playlist-empty { padding: 20px; border: 1px dashed var(--border-color); border-radius: 8px; color: #71717a; text-align: center; }
+        .stream-context-menu { display: none; position: fixed; z-index: 200; width: min(250px, calc(100vw - 24px)); padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--menu-bg); box-shadow: 0 10px 15px rgba(0,0,0,0.5); box-sizing: border-box; }
+        .stream-context-menu.show { display: block; }
+        .stream-context-title { margin: 0 0 8px; padding: 2px 4px 8px; border-bottom: 1px solid var(--border-color); color: #fff; font-size: 0.9rem; font-weight: bold; overflow-wrap: anywhere; }
+        .stream-context-delete { width: 100%; padding: 9px 10px; border: 0; border-radius: 6px; background: transparent; color: #fecaca; text-align: left; cursor: pointer; }
+        .stream-context-delete:hover { background: rgba(239, 68, 68, 0.16); }
+        .stream-context-info { width: 100%; padding: 9px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--text-color); text-align: left; cursor: pointer; }
+        .stream-context-info:hover { background: rgba(255,255,255,0.08); }
+        .stream-context-status { margin: 7px 4px 0; color: #a1a1aa; font-size: 0.8rem; }
+        .stream-info-dialog { max-height: min(80vh, 700px); overflow-y: auto; }
+        .stream-info-details { display: grid; grid-template-columns: minmax(100px, 0.35fr) minmax(0, 1fr); gap: 8px 14px; margin: 0 0 20px; overflow-wrap: anywhere; }
+        .stream-info-details dt { color: #a1a1aa; font-weight: bold; }
+        .stream-info-details dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+        
+        .media-wrapper { display: flex; flex-direction: column; justify-content: center; background: var(--card-bg); border-radius: 8px; padding: 10px; width: 100%; box-sizing: border-box; position: relative; }
+        #videoPlayer { width: 100%; height: auto; aspect-ratio: 16/9; background: #000; border-radius: 6px; display: none; }
+        #audioPlayer { width: 100%; height: 32px; }
+        .playback-status { display: none; margin: 8px 0 0; color: #fca5a5; font-size: 0.9rem; line-height: 1.4; }
+        .playback-status.show { display: block; }
+        
+        .media-wrapper { flex: 1 1 auto; min-height: 0; }
+        @media (orientation: portrait) {
+            .app-layout { flex-direction: column; }
+            .media-column { order: -1; flex: 0 0 auto; }
+            .navigation-column { flex: 1 1 0; }
+            .media-wrapper { flex: 0 0 auto; }
+        }
+         
+        #videoPlayer, #audioPlayer { transition: opacity 0.5s ease-in-out; opacity: 1; } 
+        .fade-out { opacity: 0 !important; }
+        
+        /* Mobile Navigation Buttons */
+        .stream-info-navigation { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; }
+        .stream-info-navigation .current-stream-info { flex: 1 1 auto; min-width: 0; margin: 0; }
+        .mobile-nav-btn { appearance: none; -webkit-appearance: none; display: flex; align-items: center; justify-content: center; flex: 0 0 34px; width: 34px; height: 34px; padding: 0; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 50%; background: #303039; color: #fff; cursor: pointer; box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3); touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: background 0.2s, transform 0.1s; }
+        .mobile-nav-btn svg { display: block; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+        .mobile-nav-btn:not(:disabled):hover { background: #464650; }
+        .mobile-nav-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .mobile-nav-btn:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+        .mobile-nav-btn:active { transform: scale(0.95); }
+
+        /* Files Directory List */
+        .directory-list { list-style: none; padding: 0; margin: 0; }
+        .directory-item { background: var(--card-bg); border: 1px solid var(--border-color); padding: 5px 12px; margin-bottom: 5px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; transition: background 0.2s, transform 0.2s; }
+        .directory-item:hover { transform: translateX(4px); background: #242429; }
+        .file-info { cursor: pointer; flex-grow: 1; display: flex; flex-direction: column; gap: 2px; }
+        .file-name { font-weight: bold; color: #fff; font-size: 0.95rem; }
+        .file-date { font-size: 0.8rem; color: #71717a; }
+        .delete-btn { background: var(--accent-color); color: white; border: none; padding: 6px 12px; font-size: 0.8rem; border-radius: 6px; cursor: pointer; font-weight: bold; transition: background 0.2s; }
+        .delete-btn:hover { background: #dc2626; }
+        .file-context-menu { display: none; position: fixed; z-index: 210; width: min(220px, calc(100vw - 24px)); padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--menu-bg); box-shadow: 0 10px 15px rgba(0,0,0,0.5); box-sizing: border-box; }
+        .file-context-menu.show { display: block; }
+        .file-context-title { margin: 0 0 8px; padding: 2px 4px 8px; border-bottom: 1px solid var(--border-color); color: #fff; font-size: 0.9rem; font-weight: bold; overflow-wrap: anywhere; }
+        .file-context-delete { width: 100%; padding: 9px 10px; border: 0; border-radius: 6px; background: transparent; color: #fecaca; text-align: left; cursor: pointer; }
+        .file-context-delete:hover { background: rgba(239, 68, 68, 0.16); }
+        .empty-message { text-align: center; color: #71717a; padding: 30px; font-style: italic; border: 1px dashed var(--border-color); border-radius: 8px; }
+    </style>
+</head>
+<body>
+
+    <!-- Oberer Header mit logischen Layoutanpassungen -->
+    <div class="header-container">
+        <div class="header-title">AgM3U13</div>
+        
+        <div class="header-controls">
+            <!-- Timer-Anzeigen links vom Kebab-Menü -->
+            <div class="status-container">
+                <div id="timerStatus"></div>
+                <div id="shuffleStatus"></div>
+            </div>
+            
+            <!-- Kebab-Schaltfläche -->
+            <button class="kebab-btn" id="kebabBtn" onclick="toggleDropdown(event)">
+                <svg viewBox="0 0 24 24">
+                    <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+                </svg>
+            </button>
+            
+            <!-- Ausklappbares Dropdown-Menü -->
+            <div id="dropdownMenu" class="dropdown-menu">
+                <div class="menu-title">Einstellungen</div>
+                <label class="menu-label">M3U Playlist(s) laden:</label>
+                <input type="file" id="m3uInput" accept=".m3u,.m3u8" multiple>
+                <span id="fileNameDisplay">Keine Datei geladen</span>
+                
+                <label class="menu-label">Wiedergabe stoppen in (Minuten):</label>
+                <div class="timer-input-row">
+                    <input type="number" id="sleepInput" class="timer-number-input" min="0" max="90" placeholder="0 = Aus" value="0">
+                    <button id="setSleepBtn" class="timer-set-btn">Set</button>
+                </div>
+                
+                <label class="menu-label">Stream wechseln in (Minuten):</label>
+                <div class="timer-input-row">
+                    <input type="number" id="shuffleInput" class="timer-number-input" min="0" max="90" placeholder="0 = Aus" value="0">
+                    <button id="setShuffleBtn" class="timer-set-btn">Set</button>
+                </div>
+                <p id="wakeLockStatus" class="wake-lock-status" role="status" aria-live="polite"></p>
+            </div>
+        </div>
+    </div>
+    <main class="app-layout">
+        <section class="navigation-column">
+            <div class="tab-panels">
+                <!-- Tab 1: Player View -->
+                <div id="player-tab" class="tab-content active">
+                    <div class="player-container">
+                        <div class="playlist-wrapper">
+                            <div class="search-container">
+                                <input type="text" id="searchBar" placeholder="Stream suchen...">
+                            </div>
+                            <select id="playlistSelect">
+                                <option value="">-- Bitte M3U laden --</option>
+                            </select>
+                            <div id="playlistListView" class="playlist-list-view" role="group" aria-label="Player-Playlist"></div>
+                            <div id="streamContextMenu" class="stream-context-menu" role="menu" aria-label="Stream-Menü">
+                                <p id="streamContextTitle" class="stream-context-title"></p>
+                                <button id="streamInfoMenuItem" class="stream-context-info" type="button" role="menuitem">Info</button>
+                                <button id="streamHomepageMenuItem" class="stream-context-info" type="button" role="menuitem" hidden>Homepage</button>
+                                <button id="deleteStreamMenuItem" class="stream-context-delete" type="button" role="menuitem">löschen</button>
+                                <p id="streamContextStatus" class="stream-context-status" role="status" aria-live="polite"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Files View (Dateiverzeichnis) -->
+                <div id="files-tab" class="tab-content">
+                    <ul id="directory-list" class="directory-list">
+                        <!-- Gespeicherte Listen landen hier dynamisch -->
+                    </ul>
+                    <div id="fileContextMenu" class="file-context-menu" role="menu" aria-label="Datei-Menü">
+                        <p id="fileContextTitle" class="file-context-title"></p>
+                        <button id="deleteFileMenuItem" class="file-context-delete" type="button" role="menuitem">Löschen</button>
+                    </div>
+                </div>
+
+                <div id="radio-tab" class="tab-content">
+                    <form id="radioSearchForm" class="radio-search-form">
+                        <input id="radioSearchInput" type="search" placeholder="in radio-browser.info suchen" aria-label="Radiosender suchen" required>
+                        <button id="radioSearchButton" class="radio-search-btn" type="submit">Suchen</button>
+                    </form>
+                    <p id="radioSearchStatus" class="radio-search-status" role="status" aria-live="polite"></p>
+                    <div id="radioResultsScroll">
+                        <ul id="radioResults" class="radio-results"></ul>
+                        <button id="radioLoadMoreButton" class="radio-search-btn" type="button" hidden>Weitere laden</button>
+                    </div>
+                </div>
+            </div>
+            <!-- Tab Navigation -->
+            <div class="tabs-nav">
+                <button class="tab-btn" id="btn-radio" onclick="switchTab('radio-tab')"><span class="tab-label">Browser</span></button>
+                <button class="tab-btn active" id="btn-player" title="Rechtsklick oder lange drücken für Playlist-Optionen" onclick="handlePlayerTabClick(event)"><span class="tab-label">Player</span></button>
+                <button class="tab-btn" id="btn-files" title="Rechtsklick oder lange drücken, um eine M3U-Datei auszuwählen" onclick="switchTab('files-tab')"><span class="tab-label"><span id="dir-count">0</span> Files</span></button>
+                <div id="playlistContextMenu" class="playlist-context-menu" role="menu" aria-label="Playlist-Optionen">
+                    <div id="playlistContextTitle" class="playlist-context-title">Keine Playlist geladen</div>
+                    <button id="savePlaylistAsButton" class="playlist-save-btn" type="button" role="menuitem" disabled>speichern als</button>
+                    <button id="sortPlaylistButton" class="playlist-new-btn" type="button" role="menuitem" disabled>Alphabetisch sortieren</button>
+                    <button id="newPlaylistButton" class="playlist-new-btn" type="button" role="menuitem">Neue Liste</button>
+                    <p id="playlistSaveStatus" class="playlist-save-status" role="status" aria-live="polite"></p>
+                </div>
+            </div>
+        </section>
+
+        <section class="media-column">
+            <div class="media-wrapper">
+                <audio id="audioPlayer" controls style="display:none;"></audio>
+                <video id="videoPlayer" controls></video>
+                <p id="playbackStatus" class="playback-status" role="status" aria-live="polite"></p>
+            </div>
+            <div class="stream-info-navigation">
+                <button class="mobile-nav-btn" id="mobilePrevBtn" type="button" aria-label="Vorheriger Stream" title="Vorheriger Stream">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+                </button>
+                <button id="currentStreamInfo" class="current-stream-info" type="button" aria-live="polite" aria-label="Keine Wiedergabe ausgewählt" disabled>Kein Stream ausgewählt</button>
+                <button class="mobile-nav-btn" id="mobileNextBtn" type="button" aria-label="Nächster Stream" title="Nächster Stream">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+                </button>
+            </div>
+        </section>
+    </main>
+    <dialog id="radioAddAllConfirmDialog" class="radio-confirm-dialog" aria-labelledby="radioAddAllConfirmText">
+        <p id="radioAddAllConfirmText">Wollen Sie wirklich alle gefundene Streams der bestehenden Playliste zufügen?</p>
+        <div class="radio-confirm-actions">
+            <button id="radioAddAllConfirmYes" class="radio-confirm-yes" type="button">Ja</button>
+            <button id="radioAddAllConfirmNo" class="radio-confirm-no" type="button">Nein</button>
+        </div>
+    </dialog>
+    <dialog id="deleteStreamConfirmDialog" class="radio-confirm-dialog" aria-labelledby="deleteStreamConfirmText">
+        <p id="deleteStreamConfirmText"></p>
+        <div class="radio-confirm-actions">
+            <button id="deleteStreamConfirmYes" class="radio-confirm-yes" type="button">JA</button>
+            <button id="deleteStreamConfirmNo" class="radio-confirm-no" type="button">NEIN</button>
+        </div>
+    </dialog>
+    <dialog id="deleteFileConfirmDialog" class="radio-confirm-dialog" aria-labelledby="deleteFileConfirmText">
+        <p id="deleteFileConfirmText"></p>
+        <div class="radio-confirm-actions">
+            <button id="deleteFileConfirmYes" class="radio-confirm-yes" type="button">JA</button>
+            <button id="deleteFileConfirmNo" class="radio-confirm-no" type="button">NEIN</button>
+        </div>
+    </dialog>
+    <dialog id="streamInfoDialog" class="radio-confirm-dialog stream-info-dialog" aria-labelledby="streamInfoTitle">
+        <p id="streamInfoTitle"></p>
+        <dl id="streamInfoDetails" class="stream-info-details"></dl>
+        <div class="radio-confirm-actions">
+            <button id="streamInfoClose" class="radio-confirm-no" type="button">Schließen</button>
+        </div>
+    </dialog>
+
+    <script type="text/plain" id="bundled-christian-m3u">
+#EXTM3U
+#AGSLEP_APP: AgSlep Radio Browser
+#EXTINF:-1 tvg-logo="http://radio.pervii.com/im/6/1549421846.jpg" homepage="https://3abn.org/3abn-music-channel.html" playtime="1798",3ABN Radio Music Channel - 128 kbit/s
+http://war.str3am.com:7180/MC01
+#EXTINF:-1 tvg-logo="https://bethaus.de/favicon.ico" rating="2" homepage="https://bethaus.de/livestream/",_Livestream EBG Wiesbaden
+http://segenswelle.de:8000/ebg-wiesbaden
+#EXTINF:-1 homepage="https://www.accmansfield.org/daily-messages.html" playtime="2012",Apostolic Christian Friendship Radio
+http://174.138.33.124:8000/radio.mp3
+#EXTINF:-1 tvg-logo="https://bbn1.bbnradio.org/russian/wp-content/uploads/sites/10/2023/03/BBN-Amazon-logo48x48Final.png" homepage="https://bbn1.bbnradio.org/german/" playtime="215",BBN German
+https://streams.radiomast.io/79ce8dd0-c0e9-4443-b887-0fdc1617f8bc
+#EXTINF:-1 tvg-logo="https://bbn1.bbnradio.org/russian/wp-content/uploads/sites/10/2017/01/bbnfavicon32x32.png" homepage="https://bbn1.bbnradio.org/russian/" playtime="16",BBN Russian
+https://streams.radiomast.io/1f7e18dd-42dc-4869-9785-a9800456b9e3
+#EXTINF:-1 tvg-logo="https://www.bibeltv.de/home/favicon.ico" rating="4" homepage="https://www.bibeltv.de/home/" playtime="8",Bibel TV HD
+http://bibeltv02.iptv-playoutcenter.de/bibeltv01/bibeltv01.stream_1/playlist.m3u8
+#EXTINF:-1 tvg-logo="https://www.bibeltv.de/assets/images/btv_logo.svg" rating="4" homepage="https://www.bibeltv.de/livestreams/impuls/" playtime="53",Bibel TV Impuls
+https://bibeltv02.iptv-playoutcenter.de/bibeltv02/bibeltv02.stream_1/playlist.m3u8
+#EXTINF:-1 tvg-logo="https://beta.bibeltv.de/livestreams/favicon.ico" rating="4" homepage="https://beta.bibeltv.de/livestreams/musik/" playtime="6",Bibel TV Musik
+https://bibeltv03.iptv-playoutcenter.de/bibeltv03/bibeltv03.stream_all/bibeltv03/bibeltv03.stream_1/chunks.m3u8
+#EXTINF:-1 playtime="58",Bibelradio
+http://rs1.stream24.org:8690/stream
+#EXTINF:-1 homepage="https://www.communitynetradio.org/christianliferadio" playtime="195",Cape Christian Radio
+https://ice64.securenetsystems.net/CCR1MP3
+#EXTINF:-1 tvg-logo="https://www1.cbn.com//sites/all/themes/cbn_default/images/favicons/mstile-144x144.png" homepage="https://www1.cbn.com/radio/classicchristian" playtime="1837",CBN Classic Christian Radio
+https://streams.cbnradio.com/Classic-Christian-128K?app=cbnplayer
+#EXTINF:-1 tvg-logo="https://www.communitynetradio.org/favicon.ico" rating="4" homepage="https://www.communitynetradio.org/christianliferadio" playtime="5518",Christian life radio
+https://ice64.securenetsystems.net/CLR1MP3
+#EXTINF:-1 tvg-logo="https://i.imgur.com/K3lvrog.png" playtime="13",Die Neue Zeit (576p)
+https://bild-und-ton.stream/die-neue-zeit-tv-live/smil:dnz-de.smil/playlist.m3u8
+#EXTINF:-1 tvg-logo="http://radio.pervii.com/im/1/1549783871.jpg" playtime="41",DWG Radio - 128 kbit/s
+https://server23644.streamplus.de/stream/1/
+#EXTINF:-1 homepage="https://radio.dwgradio.net/de/dwg-lyra/" playtime="987",DWG Radio Lyra
+http://server34599.streamplus.de/;stream.mp3
+#EXTINF:-1 rating="1" homepage="https://radio.dwgradio.net/ru/" playtime="5",DWG Radio ru
+https://server32349.streamplus.de/;stream.mp3
+#EXTINF:-1 playtime="527",ERF Plus
+http://stream.erfplus.de/erf-1a64/mp3-128?ar-distributor=ffa5
+#EXTINF:-1 homepage="http://stream.erf.at:8000/" playtime="220",ERF Plus Oesterreich 128k
+http://stream.erf.at:8000/erfplus_128
+#EXTINF:-1 homepage="https://www.ecbg-w.de/webradio/" playtime="177",Ev. Chr. Baptistengemeinde Werlte
+http://ecbg-w.de:8000/stream
+#EXTINF:-1 homepage="https://myevergreenradio.com/" playtime="319",Evergreen
+https://emg.streamguys1.com/evergreen-website
+#EXTINF:-1 homepage="http://49.12.36.4:8000/index.html?sid=1" playtime="1",Gemeinde Gottes Hamm
+http://49.12.36.4:8000/stream
+#EXTINF:-1 tvg-logo="https://gemeindegottesinpforzheim.de/favicon.ico" homepage="https://gemeindegottesinpforzheim.de/" playtime="269",Gemeinde Gottes in Pforzheim
+http://server22887.streamplus.de:18808/;
+#EXTINF:-1 homepage="http://www.gospelradioeastafrica.org/index.html" playtime="1562",Gospel Radio East Africa
+https://c32.radioboss.fm:18451/stream?1641237600584
+#EXTINF:-1 playtime="2994",!! Gothilft (w)
+http://gothilft.stream.laut.fm/gothilft?pl=m3u&t302=2026-01-15_01-05-39&uuid=a744357c-0a88-4060-8ae9-634a40d12683
+#EXTINF:-1 homepage="https://agradiohcjb.wixsite.com/hcjb-deutschland" playtime="49",HCJB Bibellese
+http://segenswelle.de:8000/hcjb-bibel-radio
+#EXTINF:-1 playtime="122",!! herrlichkeit-fuer-christus
+http://herrlichkeit-fuer-christus.stream.laut.fm/herrlichkeit-fuer-christus?t302=2026-01-15_08-25-08&uuid=ea82da90-972d-4549-86d9-074df2bac638
+#EXTINF:-1 tvg-logo="http://ichtys-radio.de///templates/protostar/favicon.ico" rating="3" homepage="http://ichtys-radio.de/" playtime="7",Ichtys Radio
+http://server33109.streamplus.de/;?type=http&nocache=100024
+#EXTINF:-1 rating="3" homepage="https://www.jesus-deine-hoffnung.org/" playtime="288",Jesus deine Hoffnung
+http://stream.laut.fm/jesus-deine-hoffnung-radio
+#EXTINF:-1 homepage="https://laut.fm/germanyworship" playtime="170",!! Laut.FM GermanWorship
+http://stream.laut.fm/germanyworship
+#EXTINF:-1 rating="3" homepage="https://www.lightchanneltv.de/tv/index" playtime="120",Light Channel TV
+https://streamer1.streamhost.org/salive/lctvde/chunklist_w507503087.m3u8
+#EXTINF:-1 homepage="https://www.sw-radio.com/" playtime="26",Livestream Bibellesung Deutsch
+http://segenswelle.de:8000/bibellesung-de
+#EXTINF:-1 homepage="https://www.sw-radio.com/" playtime="13",Livestream Bibellesung Plautdietsch
+http://segenswelle.de:8000/bibellesung-pld
+#EXTINF:-1 homepage="https://www.sw-radio.com/" playtime="9",Livestream Bibellesung Russisch
+http://segenswelle.de:8000/bibellesung-ru
+#EXTINF:-1 tvg-logo="https://kirchlichegemeinschaft.de/wp-content/uploads/2022/03/cropped-cropped-rose-1-180x180.png" homepage="http://segenswelle.de:8000/ELKBG-Lahr" playtime="1799",Livestream ELKBG-Lahr
+http://segenswelle.de:8000/ELKBG-Lahr
+#EXTINF:-1 homepage="https://www.mbg-hsw.de/" playtime="213",MBG Harsewinkel Gottesdienst
+https://stream.mbg-hsw.de/radio/8000/radio.mp3
+#EXTINF:-1 tvg-logo="https://mbg-versmold.de/favicon.ico" rating="1" homepage="https://mbg-versmold.de/radio/" playtime="4",MBG Versmold
+https://server7.streamserver24.com:61424/stream
+#EXTINF:-1 homepage="https://onechristianradio.co.nz/" playtime="251",One Christian Radio
+https://radio.wanderingsheep.net:33001/onechristianradio
+#EXTINF:-1 tvg-logo="https://static.wixstatic.com/media/102321_4c0f2be757ce4f8daab62fdf57ca5fcb%7emv2.png/v1/fill/w_180%2ch_180%2clg_1%2cusm_0.66_1.00_0.01/102321_4c0f2be757ce4f8daab62fdf57ca5fcb%7emv2.png" playtime="21",P7 Kristen Pop
+https://radio.p7.no/listen/p7_kristen_pop/kristen_pop
+#EXTINF:-1 homepage="http://www.pereraadio.ee/" playtime="180",Pereraadio Tallinn
+http://icecast.pereraadio.ee:8000/Tallinn
+#EXTINF:-1 homepage="https://c25.radioboss.fm/u/130" playtime="116",PHCC Gospel Radio
+https://c25.radioboss.fm:8130/4rm8tzo7qirtv
+#EXTINF:-1 tvg-logo="https://ruworship.ru/images/logo_152.png" homepage="https://ruworship.ru/" playtime="185",Piano Worship
+https://s.ruworship.ru:4045/stream
+#EXTINF:-1 homepage="https://pdxrr.com/" playtime="29",Portland Christian Radio: Radio Light
+http://pdxrr.com:8090/;
+#EXTINF:-1 rating="1" homepage="http://radcap.ru/sacred.html" playtime="55",!! Radio Caprice - Christian Sacred Music
+http://213.141.131.10:8000/sacred
+#EXTINF:-1 tvg-logo="http://radio.pervii.com/im/3/1555074883.jpg",Radio Crestin Aripi Spre Cer MQ - Christian Radio - 128 kbit/s
+http://aripisprecer.ro:8125/stream/1/
+#EXTINF:-1 homepage="http://www.pereraadio.ee/",Radio Eli
+http://icecast.pereraadio.ee:8000/RadioEli
+#EXTINF:-1 tvg-logo="http://www.freundesdienst.org/favicon.ico" homepage="http://www.freundesdienst.org/",Radio Freundesdienst Schweiz
+http://radiofdch.ice.infomaniak.ch/radiofdch.mp3
+#EXTINF:-1 homepage="https://www.radiofrieden.com/",Radio Frieden
+https://server33307.streamplus.de/stream.mp3
+#EXTINF:-1 tvg-logo="https://radiogloria.ch/favicon.ico" homepage="https://radiogloria.ch/",Radio Gloria (kath)
+https://ch-be06-ice.dmd2streaming.com/radiogloria_lo
+#EXTINF:-1 tvg-logo="https://heukelbach.org/favicon.ico" homepage="https://heukelbach.org/radio-hbr/" playtime="37",Radio HBR
+http://stream2.radiohbr.de:8080/stream.aac
+#EXTINF:-1 tvg-logo="https://andenstimme.org/wp-content/uploads/cropped-favicon-1-180x180.gif" rating="2" homepage="http://segenswelle.de:8000/" playtime="1808",Radio HCJB German
+http://segenswelle.de:8000/hcjb
+#EXTINF:-1 tvg-logo="http://www.radiohope.se/favicon.ico" homepage="http://www.radiohope.se/" playtime="388",Radio Hope
+http://s2.radio.co/sfbf5f5b85/listen
+#EXTINF:-1 homepage="https://www.radioinstrumentalgospel.com.br/" playtime="112",Radio Instrumental Gospel
+http://live8.livemus.com.br:27142/stream
+#EXTINF:-1 tvg-logo="https://www.mnr.ch/favicon.ico" homepage="https://www.mnr.ch/audio/",Radio Neue Hoffnung
+https://stream.mnr.ch/rnh-mp3
+#EXTINF:-1 homepage="http://segenswelle.de:8000/" playtime="126",Radio Segenswelle Melodia
+http://segenswelle.de:8000/melodia
+#EXTINF:-1 homepage="https://www.sw-radio.com/" playtime="8",Radio Segenswelle Russisch
+http://www.segenswelle.de:8000/russisch
+#EXTINF:-1 tvg-logo="https://heukelbach.org/wp-content/uploads/sites/3/2016/07/favicon-mwh.gif" homepage="https://heukelbach.org/radio-hbr" playtime="10",RadioHBR
+https://stream1.radiohbr.de:80/stream.mp3
+#EXTINF:-1 homepage="https://de.radiomv.com/" playtime="74",RadioMV Deutsch
+https://stream.radiomv.com/german/stream.mp3
+#EXTINF:-1 homepage="https://de.radiomv.com/" playtime="23",RadioMV Deutsch Altes Testament
+https://stream.radiomv.com/german-ot/stream.mp3
+#EXTINF:-1 homepage="https://de.radiomv.com/" playtime="11",RadioMV Deutsch Neues Testament
+https://stream.radiomv.com/german-nt/stream.mp3
+#EXTINF:-1 tvg-logo="https://sl.radiomv.com/wp-content/uploads/2023/02/favicon-32x32-1.png" homepage="https://sl.radiomv.com/" playtime="11",RadioMV Библия Ветхий Завет
+https://stream.radiomv.com/slavic-ot/stream.mp3
+#EXTINF:-1 tvg-logo="https://sl.radiomv.com/wp-content/uploads/2023/02/favicon-32x32-1.png" homepage="https://sl.radiomv.com/" playtime="4",RadioMV Библия Новый Завет
+https://stream.radiomv.com/slavic-nt/stream.mp3
+#EXTINF:-1 tvg-logo="https://sl.radiomv.com/wp-content/uploads/2023/02/favicon-32x32-1.png" homepage="https://sl.radiomv.com/" playtime="158",Radiomv Музыкальный Канал
+https://stream.radiomv.com/slavic-music/stream.mp3
+#EXTINF:-1 tvg-logo="https://rejoice.org/favicon.ico?update=2" homepage="https://www.rejoice.org/" playtime="262",Rejoice Radio
+https://rejoice.primcast.com/proxy/rejoice_radio/stream
+#EXTINF:-1 tvg-logo="https://ruworship.ru/images/logo_152.png" homepage="https://ruworship.ru/" playtime="47",RuWorship 256
+https://s.ruworship.ru:8125/radio
+#EXTINF:-1 tvg-logo="https://ruworship.ru/favicon.ico" homepage="https://ruworship.ru/" playtime="46",RuWorship Библия по плану
+https://s.ruworship.ru:8155/stream
+#EXTINF:-1 tvg-logo="https://ruworship.ru/favicon.ico" homepage="https://ruworship.ru/" playtime="6",RuWorship Новый Завет
+https://s.ruworship.ru:8145/radio
+#EXTINF:-1 tvg-logo="https://ruworship.ru/favicon.ico" homepage="https://ruworship.ru/" playtime="5",RuWorship Псалом
+https://s.ruworship.ru:8035/radio
+#EXTINF:-1 homepage="http://segenswelle.de:8000/" playtime="1818",Segenswelle Deutsch
+http://segenswelle.de:8000/deutsch
+#EXTINF:-1 homepage="http://segenswelle.de:8000/" playtime="1",Segenswelle Russisch
+http://segenswelle.de:8000/russisch
+#EXTINF:-1 homepage="http://seismicradio.org/home/" playtime="2",Seismic Radio - Russian Service
+http://158.69.227.214:8143/;?1690716440786
+#EXTINF:-1 homepage="http://www.pereraadio.ee/" playtime="2198",Semeinoje Radio
+http://icecast.pereraadio.ee:8000/Semeinoje
+#EXTINF:-1 tvg-logo="http://radio.pervii.com/logo/1403505222.png" playtime="33",Spiritual Footsteps Radio - 128 kbit/s
+http://69.28.92.175:8000/stream/1/
+#EXTINF:-1 tvg-logo="https://www.sw-radio.com/apple-touch-icon.png" homepage="https://www.sw-radio.com/" playtime="2275",SW-Radio Live
+http://segenswelle.de:8000/live
+#EXTINF:-1 homepage="http://www.sw-radio.com/" playtime="17",SW-Radio Plautdietsch
+http://www.segenswelle.de:8000/plautdietsch
+#EXTINF:-1 rating="5" homepage="https://volnaschastiya.com/",Volna Schastja
+https://listen.radioking.com/radio/562580/stream/622265
+#EXTINF:-1 tvg-logo="https://icecast.walmradio.com:8443/walm.jpg" homepage="https://walmradio.com/walm2" playtime="16",WALM 2 HD
+https://icecast.walmradio.com:8443/walm2
+#EXTINF:-1 tvg-logo="https://icecast.walmradio.com:8443/walm.jpg" homepage="https://walmradio.com/walm" playtime="555",WALM HD
+https://icecast.walmradio.com:8443/walm
+#EXTINF:-1 homepage="https://wsradio.net/" playtime="8",Wandering Sheep Radio - Christian Smooth Jazz
+http://radio.wanderingsheep.tv:8021/christianjazz
+#EXTINF:-1 tvg-logo="https://images.zeno.fm/WZoX_AarzsL-ubF-VgFKQu5HZqjWjRlRujPZmVvt53o/rs:fit:240:240/g:ce:0:0/aHR0cHM6Ly9zdHJlYW0tdG9vbHMuemVub21lZGlhLmNvbS9jb250ZW50L3N0YXRpb25zL2FneHpmbnBsYm04dGMzUmhkSE55TWdzU0NrRjFkR2hEYkdsbGJuUVlnSUNRNEthUjdBc01DeElPVTNSaGRHbHZibEJ5YjJacGJHVVlnSUNRa1AyamhRc01vZ0VFZW1WdWJ3L2ltYWdlLz91cGRhdGVkPTE2NTAxODg3MjQwMDA.webp" homepage="http://www.waytogodradio.co.ug/" playtime="6",Way To God Radio (MP3)
+http://stream.zeno.fm/g876nxxz8vzuv
+#EXTINF:-1 tvg-logo="https://golosmira.com/favicon.ico" homepage="https://golosmira.com/" playtime="5725",Голос Мира
+http://sv5.golosmira.com/radio/8020/rgm.mp3
+#EXTINF:-1 tvg-logo="https://bible-help.ru/wp-content/uploads/krest16.png" homepage="https://bible-help.ru/radio" playtime="30",Истина Сегодня
+https://c18.radioboss.fm:8475/stream
+#EXTINF:-1 tvg-logo="https://orenu.co.il/wp-content/uploads/2022/02/Radio_Orenu_2022_4.png" homepage="https://orenu.co.il/radio-2/" playtime="433",Мессианское радио Орэну
+https://listen7.myradio24.com/orenu
+#EXTINF:-1 tvg-logo="https://ruworship.ru/images/logo_152.png" homepage="https://ruworship.ru/" playtime="5",НОВЫЙ ЗАВЕТ
+https://s.ruworship.ru:4035/stream
+#EXTINF:-1 tvg-logo="https://radioslovo.net/assets/css/img/favicon.ico" homepage="https://radioslovo.net/" playtime="11",Открытое Слово
+https://rt.radioslovo.net:4395/radio
+#EXTINF:-1 tvg-logo="https://radioslovo.net/assets/css/img/favicon.ico" homepage="https://radioslovo.net/" playtime="1057",Открытое Слово Братские встречи
+https://rt.radioslovo.net:4135/stream
+#EXTINF:-1 tvg-logo="https://radioslovo.net/assets/css/img/favicon.ico" homepage="https://radioslovo.net/" playtime="2417",Открытое Слово Инструментальная музыка
+https://rt.radioslovo.net:4275/stream
+#EXTINF:-1 tvg-logo="https://nlradio.net/wp-content/uploads/2022/07/cropped-cfqn-180x180.png" playtime="18",Радио Новая Жизнь
+https://nlradio.stream:8000/nlradio-hi.aac
+#EXTINF:-1 tvg-logo="https://radiopiligrim.ru/static/imagestemplate/mobile-icons/apple-touch-icon-precomposed32.png" homepage="https://radiopiligrim.ru/" playtime="573",Радио Пилигрим Библия
+https://radiopiligrim.ru/icecast/bible
+#EXTINF:-1 tvg-logo="https://radiopiligrim.ru/static/imagestemplate/mobile-icons/apple-touch-icon-precomposed32.png" homepage="https://radiopiligrim.ru/" playtime="8",Радио Пилигрим Онлайн Вещание
+https://radiopiligrim.ru/icecast/live
+#EXTINF:-1 tvg-logo="https://sl.radiomv.com/wp-content/uploads/2023/02/favicon-32x32-1.png" homepage="https://radiomv.com/sl" playtime="510",Славянское RadioMV
+https://stream.radiomv.com/slavic/stream.mp3
+#EXTINF:-1 tvg-logo="https://slovo.org/favicon-32x32.png?v=5083498d0c358201d61b246bdcc72f06" homepage="https://slovo.org/radio/" playtime="75",Слово Благодати
+https://c13.radioboss.fm:18516/stream
+#EXTINF:-1 tvg-logo="https://slovo.org/favicon-32x32.png?v=5083498d0c358201d61b246bdcc72f06" homepage="https://www.slovoradio.org/radio-app-eu/" playtime="6",Слово Благодати - Европа и Азия
+https://c13.radioboss.fm:18516/europe
+#EXTINF:-1 tvg-logo="https://www.3angels.ru/assets/ico/favicon.svg" homepage="https://www.3angels.ru/" playtime="168",Три Ангела  Tri Angela
+https://radio.3angels.ru/live
+#EXTINF:-1 tvg-logo="https://purewave.ru/assets/templates/pure/icons/favicon-32x32.png" homepage="https://purewave.ru/" playtime="57",Чистая волна  Tschistaja Wolna
+https://stream.purewave.ru:8443/live128.mp3
+</script>
+
+    <script>
+        const m3uInput = document.getElementById('m3uInput'),
+              playlistSelect = document.getElementById('playlistSelect'),
+              playlistListView = document.getElementById('playlistListView'),
+              searchBar = document.getElementById('searchBar'),
+              streamContextMenu = document.getElementById('streamContextMenu'),
+              streamContextTitle = document.getElementById('streamContextTitle'),
+              streamInfoMenuItem = document.getElementById('streamInfoMenuItem'),
+              streamHomepageMenuItem = document.getElementById('streamHomepageMenuItem'),
+              deleteStreamMenuItem = document.getElementById('deleteStreamMenuItem'),
+              streamContextStatus = document.getElementById('streamContextStatus'),
+              deleteStreamConfirmDialog = document.getElementById('deleteStreamConfirmDialog'),
+              deleteStreamConfirmText = document.getElementById('deleteStreamConfirmText'),
+              deleteStreamConfirmYes = document.getElementById('deleteStreamConfirmYes'),
+              deleteStreamConfirmNo = document.getElementById('deleteStreamConfirmNo'),
+              streamInfoDialog = document.getElementById('streamInfoDialog'),
+              streamInfoTitle = document.getElementById('streamInfoTitle'),
+              streamInfoDetails = document.getElementById('streamInfoDetails'),
+              streamInfoClose = document.getElementById('streamInfoClose'),
+              sleepInput = document.getElementById('sleepInput'),
+              shuffleInput = document.getElementById('shuffleInput'),
+              setSleepBtn = document.getElementById('setSleepBtn'),
+              setShuffleBtn = document.getElementById('setShuffleBtn'),
+              timerStatus = document.getElementById('timerStatus'),
+              shuffleStatus = document.getElementById('shuffleStatus'),
+              wakeLockStatus = document.getElementById('wakeLockStatus'),
+              audioPlayer = document.getElementById('audioPlayer'),
+              videoPlayer = document.getElementById('videoPlayer'),
+              playbackStatus = document.getElementById('playbackStatus'),
+              currentStreamInfo = document.getElementById('currentStreamInfo'),
+              fileNameDisplay = document.getElementById('fileNameDisplay'),
+              dropdownMenu = document.getElementById('dropdownMenu'),
+              kebabBtn = document.getElementById('kebabBtn'),
+              radioSearchForm = document.getElementById('radioSearchForm'),
+              radioSearchInput = document.getElementById('radioSearchInput'),
+              radioSearchButton = document.getElementById('radioSearchButton'),
+              radioSearchStatus = document.getElementById('radioSearchStatus'),
+              radioResults = document.getElementById('radioResults'),
+              radioLoadMoreButton = document.getElementById('radioLoadMoreButton'),
+              radioAddAllConfirmDialog = document.getElementById('radioAddAllConfirmDialog'),
+              radioAddAllConfirmYes = document.getElementById('radioAddAllConfirmYes'),
+              radioAddAllConfirmNo = document.getElementById('radioAddAllConfirmNo'),
+              btnPlayer = document.getElementById('btn-player'),
+              playlistContextMenu = document.getElementById('playlistContextMenu'),
+              playlistContextTitle = document.getElementById('playlistContextTitle'),
+              savePlaylistAsButton = document.getElementById('savePlaylistAsButton'),
+              sortPlaylistButton = document.getElementById('sortPlaylistButton'),
+              newPlaylistButton = document.getElementById('newPlaylistButton'),
+              playlistSaveStatus = document.getElementById('playlistSaveStatus'),
+              directoryList = document.getElementById('directory-list'),
+              fileContextMenu = document.getElementById('fileContextMenu'),
+              fileContextTitle = document.getElementById('fileContextTitle'),
+              deleteFileMenuItem = document.getElementById('deleteFileMenuItem'),
+              deleteFileConfirmDialog = document.getElementById('deleteFileConfirmDialog'),
+              deleteFileConfirmText = document.getElementById('deleteFileConfirmText'),
+              deleteFileConfirmYes = document.getElementById('deleteFileConfirmYes'),
+              deleteFileConfirmNo = document.getElementById('deleteFileConfirmNo');
+
+        let activePlayer = null, playlistTracks = [], timerInterval = null, errorTimeout = null, currentPlayingUrl = "";
+        let currentRadioStation = null;
+        let lastRadioStation = null;
+        let lastPlayerTrackUrl = '';
+        let contextStreamUrl = '';
+        let pendingDeleteStreamUrl = '';
+        let contextFileIndex = null;
+        let pendingDeleteFile = null;
+        let directoryLongPressTimer = null;
+        let ignoreDirectoryClickUntil = 0;
+        let streamInfoRequestController = null;
+        let radioSearchController = null;
+        let radioCurrentQuery = '', radioSearchOffset = 0;
+        const radioPageSize = 50;
+        let radioPlaybackInProgress = false;
+        let radioStationMenuTimer = null, ignoreNextRadioStationClick = false;
+        let playerLongPressTimer = null, ignoreNextPlayerTabClick = false, lastPlayerPointerType = '';
+        let sleepTimeLeft = 0, shuffleTimeLeft = 0;
+        let sleepTimerMinutes = 0, shuffleTimerMinutes = 0;
+        let isSleepPausedManually = false, isShufflePausedManually = false;
+        let activeTabId = 'player-tab', shuffleLastTickAt = 0;
+        let screenWakeLock = null, wakeLockRequestId = 0;
+        let skipAttempts = 0;
+        let hls = null;
+
+        // Dropdown Toggle Funktion
+        function toggleDropdown(e) {
+            e.stopPropagation();
+            dropdownMenu.classList.toggle('show');
+        }
+
+        // Tab-Umschaltfunktion
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            
+            document.getElementById(tabId).classList.add('active');
+            activeTabId = tabId;
+            if (tabId === 'player-tab') document.getElementById('btn-player').classList.add('active');
+            if (tabId === 'files-tab') document.getElementById('btn-files').classList.add('active');
+            if (tabId === 'radio-tab') document.getElementById('btn-radio').classList.add('active');
+        }
+
+        function handlePlayerTabClick(event) {
+            if (ignoreNextPlayerTabClick) {
+                event.preventDefault();
+                ignoreNextPlayerTabClick = false;
+                return;
+            }
+            switchTab('player-tab');
+        }
+
+        function updatePlaylistContextMenu() {
+            const playlistData = localStorage.getItem('lastM3UData');
+            const storedName = localStorage.getItem('lastM3UFileName') || '';
+            const fileName = storedName.replace(/^Geladene Datei:\s*/, '').trim();
+            playlistContextTitle.textContent = fileName || 'Keine Playlist geladen';
+            savePlaylistAsButton.disabled = !playlistData;
+            sortPlaylistButton.disabled = !playlistData;
+            playlistSaveStatus.textContent = '';
+        }
+
+        function openPlaylistContextMenu() {
+            updatePlaylistContextMenu();
+            playlistContextMenu.classList.add('show');
+        }
+
+        function closePlaylistContextMenu() {
+            playlistContextMenu.classList.remove('show');
+        }
+
+        function closeLoadedPlaylist() {
+            if (activePlayer) {
+                activePlayer.pause();
+                activePlayer.removeAttribute('src');
+                activePlayer.load();
+                activePlayer.classList.remove('fade-out');
+                activePlayer.volume = 1;
+            }
+            if (hls) {
+                hls.destroy();
+                hls = null;
+            }
+            clearTimeout(errorTimeout);
+            currentRadioStation = null;
+            currentPlayingUrl = '';
+            lastPlayerTrackUrl = '';
+            activePlayer = null;
+            playlistTracks = [];
+            searchBar.value = '';
+            searchBar.placeholder = 'Stream suchen...';
+            playlistSelect.innerHTML = '<option value="">-- Bitte M3U laden --</option>';
+            fileNameDisplay.textContent = 'Keine Datei geladen';
+            localStorage.removeItem('lastM3UData');
+            localStorage.removeItem('lastM3UFileName');
+            localStorage.removeItem('lastM3USearchContext');
+            localStorage.removeItem('lastM3USearch');
+            localStorage.removeItem('lastM3UTrack');
+            localStorage.removeItem('lastM3UTime');
+            resetTimersToSelected();
+            updatePlaybackButton();
+            updateRadioInsertButtons();
+            updatePlaylistContextMenu();
+            closeStreamContextMenu();
+            closePlaylistContextMenu();
+        }
+
+        async function createNewPlaylist() {
+            const content = '#EXTM3U\n';
+            let name = 'Playlist.m3u';
+            newPlaylistButton.disabled = true;
+            playlistSaveStatus.textContent = 'Speicherdialog wird geöffnet...';
+
+            try {
+                if (typeof window.showSaveFilePicker === 'function') {
+                    const fileHandle = await window.showSaveFilePicker({
+                        suggestedName: name,
+                        types: [{
+                            description: 'M3U-Playlist',
+                            accept: { 'audio/x-mpegurl': ['.m3u'] }
+                        }]
+                    });
+                    name = fileHandle.name;
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(new Blob([content], { type: 'audio/x-mpegurl;charset=utf-8' }));
+                    await writable.close();
+                } else {
+                    const objectUrl = URL.createObjectURL(new Blob([content], { type: 'audio/x-mpegurl;charset=utf-8' }));
+                    const link = document.createElement('a');
+                    link.href = objectUrl;
+                    link.download = name;
+                    link.click();
+                    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+                }
+
+                closeLoadedPlaylist();
+                fileNameDisplay.textContent = `Geladene Datei: ${name}`;
+                searchBar.value = '';
+                setSearchPlaceholder(name);
+                localStorage.setItem('lastM3UData', content);
+                localStorage.setItem('lastM3UFileName', fileNameDisplay.textContent);
+                localStorage.setItem('lastM3USearchContext', name);
+                localStorage.removeItem('lastM3USearch');
+                saveToDirectory(name, content);
+                parseM3U(content);
+                switchTab('player-tab');
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    playlistSaveStatus.textContent = 'Erstellen der neuen Liste abgebrochen.';
+                } else {
+                    playlistSaveStatus.textContent = `Neue Liste konnte nicht erstellt werden: ${error.message}`;
+                }
+            } finally {
+                newPlaylistButton.disabled = false;
+            }
+        }
+
+        newPlaylistButton.addEventListener('click', createNewPlaylist);
+
+        sortPlaylistButton.addEventListener('click', sortLoadedPlaylistAlphabetically);
+
+        function sortLoadedPlaylistAlphabetically() {
+            const playlistData = localStorage.getItem('lastM3UData');
+            if (!playlistData) {
+                playlistSaveStatus.textContent = 'Keine Playlist zum Sortieren vorhanden.';
+                return;
+            }
+
+            const lines = playlistData.replace(/^\uFEFF/, '').split(/\r?\n/);
+            while (lines.length && lines[lines.length - 1] === '') lines.pop();
+
+            const header = [];
+            const entries = [];
+            let pending = [];
+
+            lines.forEach(line => {
+                if (!line.trim() || line.trim().startsWith('#')) {
+                    pending.push(line);
+                    return;
+                }
+
+                let entryLines = pending;
+                if (!entries.length) {
+                    const extinfIndex = pending.findIndex(pendingLine => pendingLine.trim().startsWith('#EXTINF:'));
+                    if (extinfIndex >= 0) {
+                        header.push(...pending.slice(0, extinfIndex));
+                        entryLines = pending.slice(extinfIndex);
+                    } else {
+                        while (entryLines.length && /^#(?:EXTM3U|AGSLEP_APP:)/i.test(entryLines[0].trim())) {
+                            header.push(entryLines.shift());
+                        }
+                    }
+                }
+                entryLines.push(line);
+                const extinfLine = entryLines.find(entryLine => entryLine.trim().startsWith('#EXTINF:'));
+                const commaIndex = extinfLine ? extinfLine.indexOf(',') : -1;
+                const title = commaIndex >= 0 ? extinfLine.slice(commaIndex + 1).trim() : line.trim();
+                entries.push({ lines: entryLines, title });
+                pending = [];
+            });
+
+            if (!entries.length) {
+                playlistSaveStatus.textContent = 'Die Playlist enthält keine Streams zum Sortieren.';
+                return;
+            }
+
+            const sortedEntries = entries.sort((a, b) => a.title.localeCompare(b.title, 'de', { sensitivity: 'base', numeric: true }));
+            const updatedPlaylist = [...header, ...sortedEntries.flatMap(entry => entry.lines), ...pending].join('\n') + '\n';
+            persistUpdatedPlaylist(updatedPlaylist);
+            updateM3ULastStreamMarker(currentPlayingUrl);
+            playlistSaveStatus.textContent = 'Playlist wurde alphabetisch sortiert.';
+        }
+
+        btnPlayer.addEventListener('contextmenu', function(event) {
+            event.preventDefault();
+            if (lastPlayerPointerType === 'touch') ignoreNextPlayerTabClick = true;
+            openPlaylistContextMenu();
+        });
+
+        btnPlayer.addEventListener('pointerdown', function(event) {
+            lastPlayerPointerType = event.pointerType;
+            ignoreNextPlayerTabClick = false;
+            if (event.pointerType !== 'touch') return;
+            clearTimeout(playerLongPressTimer);
+            playerLongPressTimer = setTimeout(function() {
+                ignoreNextPlayerTabClick = true;
+                openPlaylistContextMenu();
+            }, 600);
+        });
+
+        ['pointerup', 'pointercancel', 'pointerleave'].forEach(eventName => {
+            btnPlayer.addEventListener(eventName, function() {
+                clearTimeout(playerLongPressTimer);
+            });
+        });
+
+        document.addEventListener('click', function(event) {
+            if (!playlistContextMenu.contains(event.target) && !btnPlayer.contains(event.target)) {
+                closePlaylistContextMenu();
+            }
+        });
+
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') closePlaylistContextMenu();
+        });
+
+        savePlaylistAsButton.addEventListener('click', async function() {
+            const playlistData = localStorage.getItem('lastM3UData');
+            if (!playlistData) {
+                updatePlaylistContextMenu();
+                playlistSaveStatus.textContent = 'Keine Playlist zum Speichern vorhanden.';
+                return;
+            }
+
+            const storedName = (localStorage.getItem('lastM3UFileName') || '').replace(/^Geladene Datei:\s*/, '').trim();
+            const validName = storedName && /\.(m3u8?)$/i.test(storedName) ? storedName : 'Playlist.m3u';
+            const suggestedName = validName.replace(/[\\/:*?"<>|]/g, '_');
+            const blob = new Blob([playlistData], { type: 'audio/x-mpegurl;charset=utf-8' });
+            savePlaylistAsButton.disabled = true;
+            playlistSaveStatus.textContent = 'Speichern wird vorbereitet...';
+
+            try {
+                if (typeof window.showSaveFilePicker === 'function') {
+                    const fileHandle = await window.showSaveFilePicker({
+                        suggestedName,
+                        types: [{
+                            description: 'M3U-Playlist',
+                            accept: { 'audio/x-mpegurl': ['.m3u', '.m3u8'] }
+                        }]
+                    });
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(blob);
+                    await writable.close();
+                } else {
+                    const objectUrl = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = objectUrl;
+                    link.download = suggestedName;
+                    link.click();
+                    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+                }
+                playlistSaveStatus.textContent = 'Playlist wurde zum Speichern bereitgestellt.';
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    playlistSaveStatus.textContent = 'Speichern abgebrochen.';
+                } else {
+                    playlistSaveStatus.textContent = `Speichern fehlgeschlagen: ${error.message}`;
+                }
+            } finally {
+                savePlaylistAsButton.disabled = false;
+            }
+        });
+
+        document.getElementById('btn-files').addEventListener('contextmenu', function(event) {
+            event.preventDefault();
+            m3uInput.click();
+        });
+
+        if (radioSearchForm) {
+            radioSearchInput.addEventListener('input', function() {
+                localStorage.setItem('lastRadioBrowserSearch', radioSearchInput.value);
+            });
+
+            radioSearchForm.addEventListener('submit', function(event) {
+                event.preventDefault();
+                const query = radioSearchInput.value.trim();
+                if (!query) return;
+
+                localStorage.setItem('lastRadioBrowserSearch', radioSearchInput.value);
+                radioCurrentQuery = query;
+                radioSearchOffset = 0;
+                fetchRadioStations(query, 0, false);
+            });
+        }
+
+        radioLoadMoreButton.addEventListener('click', function() {
+            if (radioCurrentQuery) fetchRadioStations(radioCurrentQuery, radioSearchOffset, true);
+        });
+
+        function closeRadioStationMenus() {
+            radioResults.querySelectorAll('.radio-station-menu.show').forEach(menu => menu.classList.remove('show'));
+            radioResults.querySelectorAll('.radio-station-info[aria-expanded="true"]').forEach(info => info.setAttribute('aria-expanded', 'false'));
+            radioResults.querySelectorAll('.radio-station.menu-open').forEach(item => item.classList.remove('menu-open'));
+        }
+
+        function openRadioStationMenu(item) {
+            closeRadioStationMenus();
+            const menu = item.querySelector('.radio-station-menu');
+            const info = item.querySelector('.radio-station-info');
+            menu.classList.add('show');
+            item.classList.add('menu-open');
+            info.setAttribute('aria-expanded', 'true');
+        }
+
+        radioResults.addEventListener('click', function(event) {
+            const item = event.target.closest('.radio-station');
+            if (!item) {
+                closeRadioStationMenus();
+                return;
+            }
+            if (event.target.closest('.radio-station-menu, button')) return;
+            if (ignoreNextRadioStationClick) {
+                ignoreNextRadioStationClick = false;
+                return;
+            }
+            closeRadioStationMenus();
+            toggleRadioStation(item.radioStation);
+        });
+
+        radioResults.addEventListener('contextmenu', function(event) {
+            const item = event.target.closest('.radio-station');
+            if (!item) return;
+            event.preventDefault();
+            if (event.pointerType === 'touch') ignoreNextRadioStationClick = true;
+            openRadioStationMenu(item);
+        });
+
+        radioResults.addEventListener('pointerdown', function(event) {
+            ignoreNextRadioStationClick = false;
+            const item = event.target.closest('.radio-station');
+            if (!item || event.target.closest('.radio-station-menu, button') || event.pointerType !== 'touch') return;
+            clearTimeout(radioStationMenuTimer);
+            radioStationMenuTimer = setTimeout(function() {
+                ignoreNextRadioStationClick = true;
+                openRadioStationMenu(item);
+            }, 550);
+        });
+
+        ['pointerup', 'pointercancel', 'pointerleave'].forEach(eventName => {
+            radioResults.addEventListener(eventName, function() {
+                clearTimeout(radioStationMenuTimer);
+            });
+        });
+
+        document.addEventListener('click', function(event) {
+            if (!event.target.closest('#radioResults')) closeRadioStationMenus();
+        });
+
+        radioAddAllConfirmYes.addEventListener('click', function() {
+            radioAddAllConfirmDialog.close();
+            insertAllRadioStations();
+        });
+        radioAddAllConfirmNo.addEventListener('click', function() {
+            radioAddAllConfirmDialog.close();
+        });
+
+        radioResults.addEventListener('keydown', function(event) {
+            const info = event.target.closest('.radio-station-info');
+            if (!info || (event.key !== 'Enter' && event.key !== ' ')) return;
+            event.preventDefault();
+            toggleRadioStation(info.closest('.radio-station').radioStation);
+        });
+
+        async function fetchRadioStations(query, offset, append) {
+            if (radioSearchController) radioSearchController.abort();
+            radioSearchController = new AbortController();
+            const controller = radioSearchController;
+            radioSearchButton.disabled = true;
+            radioLoadMoreButton.disabled = true;
+            radioSearchStatus.textContent = append ? 'Weitere Sender werden geladen...' : 'Suche läuft...';
+            if (!append) {
+                radioResults.replaceChildren();
+                radioLoadMoreButton.hidden = true;
+            }
+
+            try {
+                const params = new URLSearchParams({
+                    name: query,
+                    limit: String(radioPageSize + 1),
+                    offset: String(offset),
+                    order: 'clickcount',
+                    reverse: 'true'
+                });
+                const response = await fetch(`https://all.api.radio-browser.info/json/stations/search?${params}`, {
+                    signal: controller.signal
+                });
+                if (!response.ok) throw new Error(`Radio-Browser antwortet mit HTTP ${response.status}.`);
+
+                const stations = await response.json();
+                if (!Array.isArray(stations)) throw new Error('Die Radio-Browser-Antwort hat ein unerwartetes Format.');
+                if (controller !== radioSearchController) return;
+
+                const hasMore = stations.length > radioPageSize;
+                const pageStations = stations.slice(0, radioPageSize);
+                const addedCount = renderRadioStations(pageStations, append);
+                radioSearchOffset = offset + pageStations.length;
+                radioLoadMoreButton.hidden = !hasMore;
+                radioSearchStatus.textContent = append
+                    ? `${addedCount} weitere Sender geladen.`
+                    : stations.length ? `${addedCount} Sender gefunden.` : 'Keine Sender gefunden.';
+            } catch (error) {
+                if (error.name === 'AbortError' || controller !== radioSearchController) return;
+                radioSearchStatus.textContent = `Suche fehlgeschlagen: ${error.message}`;
+            } finally {
+                if (controller === radioSearchController) {
+                    radioSearchButton.disabled = false;
+                    radioLoadMoreButton.disabled = false;
+                }
+            }
+        }
+
+        function renderRadioStations(stations, append = false) {
+            const fragment = document.createDocumentFragment();
+            const knownStationIds = new Set(
+                Array.from(radioResults.querySelectorAll('.radio-station'), item => item.dataset.stationuuid)
+            );
+            let addedCount = 0;
+            stations.forEach(function(station) {
+                if (!station || !station.stationuuid || knownStationIds.has(station.stationuuid) ||
+                    !station.name || !(station.url_resolved || station.url)) return;
+
+                const item = document.createElement('li');
+                item.className = 'radio-station';
+                item.dataset.stationuuid = station.stationuuid;
+                item.dataset.streamUrl = station.url_resolved || station.url;
+                item.radioStation = station;
+                const info = document.createElement('div');
+                info.className = 'radio-station-info';
+                info.setAttribute('role', 'button');
+                info.setAttribute('tabindex', '0');
+                info.setAttribute('aria-expanded', 'false');
+                info.setAttribute('aria-label', `Sender abspielen: ${station.name}`);
+
+                const name = document.createElement('span');
+                name.className = 'radio-station-name';
+                name.textContent = station.name;
+                info.appendChild(name);
+
+                const details = [station.country, station.language, station.codec, station.bitrate ? `${station.bitrate} kbit/s` : '']
+                    .filter(Boolean)
+                    .join(' · ');
+                if (details) {
+                    const detailLine = document.createElement('span');
+                    detailLine.className = 'radio-station-details';
+                    detailLine.textContent = details;
+                    info.appendChild(detailLine);
+                }
+
+                const insertButton = document.createElement('button');
+                insertButton.type = 'button';
+                insertButton.className = 'radio-insert-btn';
+                insertButton.setAttribute('role', 'menuitem');
+                insertButton.setAttribute('aria-label', `Sender ${station.name} in die Playlist einfügen`);
+                insertButton.title = 'In die Playlist';
+                insertButton.textContent = 'In die Playlist';
+                insertButton.disabled = !localStorage.getItem('lastM3UData');
+                insertButton.addEventListener('click', function() {
+                    insertRadioStation(station, insertButton);
+                });
+
+                const insertAllButton = document.createElement('button');
+                insertAllButton.type = 'button';
+                insertAllButton.className = 'radio-insert-all-btn';
+                insertAllButton.setAttribute('role', 'menuitem');
+                insertAllButton.textContent = 'Alle in Playlist';
+                insertAllButton.disabled = !localStorage.getItem('lastM3UData');
+                insertAllButton.addEventListener('click', function() {
+                    if (!localStorage.getItem('lastM3UData')) {
+                        radioSearchStatus.textContent = 'Lade zuerst eine Playlist im Player, bevor du Sender einfügst.';
+                        return;
+                    }
+                    closeRadioStationMenus();
+                    radioAddAllConfirmDialog.showModal();
+                });
+
+                const infoButton = document.createElement('button');
+                infoButton.type = 'button';
+                infoButton.className = 'radio-info-btn';
+                infoButton.setAttribute('role', 'menuitem');
+                infoButton.textContent = 'Info';
+                infoButton.addEventListener('click', function() {
+                    closeRadioStationMenus();
+                    showStreamInfo(station.url_resolved || station.url, station);
+                });
+
+                const stationMenu = document.createElement('div');
+                stationMenu.className = 'radio-station-menu';
+                stationMenu.setAttribute('role', 'menu');
+                const menuTitle = document.createElement('p');
+                menuTitle.className = 'radio-station-menu-title';
+                menuTitle.textContent = station.name;
+                stationMenu.append(menuTitle, infoButton);
+                const homepageUrl = getValidHomepageUrl(station.homepage);
+                if (homepageUrl) {
+                    const homepageButton = document.createElement('button');
+                    homepageButton.type = 'button';
+                    homepageButton.className = 'radio-homepage-btn';
+                    homepageButton.setAttribute('role', 'menuitem');
+                    homepageButton.textContent = 'Homepage';
+                    homepageButton.addEventListener('click', function() {
+                        closeRadioStationMenus();
+                        openHomepage(homepageUrl);
+                    });
+                    stationMenu.appendChild(homepageButton);
+                }
+                stationMenu.append(insertButton, insertAllButton);
+
+                item.append(info, stationMenu);
+                fragment.appendChild(item);
+                knownStationIds.add(station.stationuuid);
+                addedCount++;
+            });
+            if (append) radioResults.appendChild(fragment);
+            else radioResults.replaceChildren(fragment);
+            updateRadioStationButtons();
+            updateRadioInsertButtons();
+            return addedCount;
+        }
+
+        function updateRadioStationButtons() {
+            const isLastRadioStation = station => Boolean(
+                lastRadioStation &&
+                (lastRadioStation.stationuuid === station.stationuuid ||
+                    (lastRadioStation.url_resolved || lastRadioStation.url) === (station.url_resolved || station.url))
+            );
+            radioResults.querySelectorAll('.radio-station').forEach(item => {
+                const isLastStation = isLastRadioStation(item.radioStation);
+                const isCurrentStationPlaying = isLastStation && currentRadioStation &&
+                    isLastRadioStation(currentRadioStation) && currentPlayingUrl === (item.radioStation.url_resolved || item.radioStation.url) &&
+                    activePlayer && !activePlayer.paused && !activePlayer.ended;
+                item.classList.toggle('is-playing', isCurrentStationPlaying);
+                item.classList.toggle('is-paused', isLastStation && !isCurrentStationPlaying);
+                const info = item.querySelector('.radio-station-info');
+                const playbackLabel = isCurrentStationPlaying ? 'Sender stoppen' : isLastStation ? 'Sender fortsetzen' : 'Sender abspielen';
+                info.setAttribute('aria-label', `${playbackLabel}: ${item.radioStation.name}`);
+            });
+        }
+
+        function toggleRadioStation(station) {
+            if (currentRadioStation && currentRadioStation.stationuuid === station.stationuuid &&
+                activePlayer && !activePlayer.paused && !activePlayer.ended) {
+                activePlayer.pause();
+                try { activePlayer.currentTime = 0; } catch (error) {}
+                updatePlaybackButton();
+                radioSearchStatus.textContent = `Gestoppt: ${station.name}`;
+                return;
+            }
+
+            playRadioStation(station);
+        }
+
+        function playRadioStation(station, immediate = false) {
+            if (radioPlaybackInProgress) return;
+            radioPlaybackInProgress = true;
+
+            try {
+                const streamUrl = station.url_resolved || station.url;
+                const parsedUrl = new URL(streamUrl);
+                if (!['http:', 'https:'].includes(parsedUrl.protocol)) throw new Error('Ungültiges Stream-Protokoll.');
+                const sameStream = currentPlayingUrl === streamUrl;
+                if (!currentRadioStation && playlistTracks.some(track => track.url === currentPlayingUrl)) {
+                    lastPlayerTrackUrl = currentPlayingUrl;
+                }
+                currentRadioStation = station;
+                lastRadioStation = station;
+                currentPlayingUrl = streamUrl;
+                playlistSelect.value = '';
+
+                if (sameStream && activePlayer && activePlayer.paused) {
+                    const playRequest = activePlayer.play();
+                    if (playRequest) {
+                        playRequest.catch(error => {
+                            radioSearchStatus.textContent = `Stream konnte nicht gestartet werden: ${error.message}`;
+                        });
+                    }
+                } else if (!sameStream || !activePlayer) {
+                    if (activePlayer) {
+                        activePlayer.pause();
+                        activePlayer.classList.remove('fade-out');
+                        activePlayer.volume = 1;
+                    }
+                    playMedia(streamUrl, 0, true, immediate);
+                }
+                updateMediaSessionMetadata();
+                updatePlaybackButton();
+                radioSearchStatus.textContent = `Lade Stream: ${station.name}`;
+            } catch (error) {
+                radioSearchStatus.textContent = `Sender konnte nicht gestartet werden: ${error.message}`;
+                radioPlaybackInProgress = false;
+                return;
+            }
+
+            radioPlaybackInProgress = false;
+            fetch(`https://all.api.radio-browser.info/json/url/${encodeURIComponent(station.stationuuid)}`)
+                .then(response => {
+                    if (!response.ok) throw new Error(`Radio-Browser antwortet mit HTTP ${response.status}.`);
+                    return response.json();
+                })
+                .then(result => {
+                    if (!result.ok) throw new Error(result.message || 'Klick konnte nicht registriert werden.');
+                })
+                .catch(error => {
+                    if (currentPlayingUrl === (station.url_resolved || station.url)) {
+                        radioSearchStatus.textContent = `Stream wird geladen, aber der Klick konnte nicht registriert werden: ${error.message}`;
+                    }
+                });
+        }
+
+        function setRadioInsertFeedback(button, state) {
+            if (!button) return;
+            const item = button.closest('.radio-station');
+            const stationName = item ? item.querySelector('.radio-station-name').textContent : 'Sender';
+            const isInserted = state === 'inserted' || state === 'duplicate';
+            button.classList.toggle('is-inserted', isInserted);
+            button.title = state === 'duplicate' ? 'Bereits in der Playlist' : isInserted ? 'In die Playlist eingefügt' : 'In die geöffnete Playlist einfügen';
+            button.setAttribute('aria-label', state === 'duplicate'
+                ? `${stationName} ist bereits in der Playlist`
+                : isInserted ? `${stationName} wurde in die Playlist eingefügt` : `${stationName} in die Playlist einfügen`);
+            if (item) item.classList.toggle('is-inserted', isInserted);
+
+            if (isInserted) {
+                const label = state === 'duplicate' ? 'Bereits in der Playlist' : 'In der Playlist';
+                button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 16.2-3.5-3.5L4 14.2l5 5 11-11-1.5-1.5z"/></svg>${label}`;
+            } else {
+                button.textContent = 'In die Playlist';
+            }
+        }
+
+        function insertRadioStation(station, button) {
+            const playlistData = localStorage.getItem('lastM3UData');
+            if (!playlistData) {
+                radioSearchStatus.textContent = 'Lade zuerst eine Playlist im Player, bevor du Sender einfügst.';
+                setRadioInsertFeedback(button, 'error');
+                return;
+            }
+
+            const streamUrl = station.url_resolved || station.url;
+            let parsedUrl;
+            try {
+                parsedUrl = new URL(streamUrl);
+            } catch (error) {
+                radioSearchStatus.textContent = 'Dieser Sender hat eine ungültige Stream-Adresse.';
+                setRadioInsertFeedback(button, 'error');
+                return;
+            }
+            if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+                radioSearchStatus.textContent = 'Dieser Sender hat eine ungültige Stream-Adresse.';
+                setRadioInsertFeedback(button, 'error');
+                return;
+            }
+            if (playlistData.split(/\r?\n/).some(line => line.trim() === streamUrl)) {
+                radioSearchStatus.textContent = `„${station.name}“ ist bereits in der Playlist.`;
+                setRadioInsertFeedback(button, 'duplicate');
+                return;
+            }
+
+            const safeTitle = station.name.replace(/[\r\n]/g, ' ').trim() || 'Unbekannter Sender';
+            const separator = playlistData && !playlistData.endsWith('\n') ? '\n' : '';
+            const updatedPlaylist = `${playlistData}${separator}#EXTINF:-1,${safeTitle}\n${streamUrl}\n`;
+            persistUpdatedPlaylist(updatedPlaylist);
+
+            updateRadioInsertButtons();
+            setRadioInsertFeedback(button, 'inserted');
+            radioSearchStatus.textContent = `„${station.name}“ wurde in die Playlist eingefügt.`;
+        }
+
+        function persistUpdatedPlaylist(updatedPlaylist) {
+            const loadedName = (localStorage.getItem('lastM3UFileName') || '').replace(/^Geladene Datei:\s*/, '').trim();
+
+            localStorage.setItem('lastM3UData', updatedPlaylist);
+            parseM3U(updatedPlaylist);
+
+            const savedPlaylists = JSON.parse(localStorage.getItem('agm3u_playlists') || '[]');
+            const savedPlaylist = savedPlaylists.find(playlist => playlist.name === loadedName);
+            if (savedPlaylist) {
+                savedPlaylist.content = updatedPlaylist;
+                localStorage.setItem('agm3u_playlists', JSON.stringify(savedPlaylists));
+                renderDirectory();
+            }
+
+            updatePlaylistContextMenu();
+        }
+
+        function insertAllRadioStations() {
+            const playlistData = localStorage.getItem('lastM3UData');
+            if (!playlistData) {
+                radioSearchStatus.textContent = 'Lade zuerst eine Playlist im Player, bevor du Sender einfügst.';
+                return;
+            }
+
+            const stations = Array.from(radioResults.querySelectorAll('.radio-station'), item => item.radioStation);
+            if (!stations.length) {
+                radioSearchStatus.textContent = 'Es wurden keine Streams gefunden.';
+                return;
+            }
+
+            const existingUrls = new Set(playlistData.split(/\r?\n/).map(line => line.trim()).filter(Boolean));
+            const newEntries = [];
+            let duplicateCount = 0;
+            let invalidCount = 0;
+            stations.forEach(station => {
+                const streamUrl = station.url_resolved || station.url;
+                let parsedUrl;
+                try {
+                    parsedUrl = new URL(streamUrl);
+                } catch (error) {
+                    invalidCount++;
+                    return;
+                }
+                if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+                    invalidCount++;
+                    return;
+                }
+                if (existingUrls.has(streamUrl)) {
+                    duplicateCount++;
+                    return;
+                }
+
+                existingUrls.add(streamUrl);
+                const safeTitle = station.name.replace(/[\r\n]/g, ' ').trim() || 'Unbekannter Sender';
+                newEntries.push(`#EXTINF:-1,${safeTitle}\n${streamUrl}`);
+            });
+
+            if (!newEntries.length) {
+                radioSearchStatus.textContent = `Keine neuen Streams hinzugefügt. Bereits vorhanden: ${duplicateCount}${invalidCount ? `; ungültig: ${invalidCount}` : ''}.`;
+                return;
+            }
+
+            const separator = playlistData && !playlistData.endsWith('\n') ? '\n' : '';
+            persistUpdatedPlaylist(`${playlistData}${separator}${newEntries.join('\n')}\n`);
+            radioSearchStatus.textContent = `${newEntries.length} Streams am Ende der Playlist hinzugefügt.${duplicateCount ? ` ${duplicateCount} bereits vorhandene übersprungen.` : ''}${invalidCount ? ` ${invalidCount} ungültige übersprungen.` : ''}`;
+        }
+
+        function updateRadioInsertButtons() {
+            const playlistData = localStorage.getItem('lastM3UData') || '';
+            const hasPlaylist = Boolean(playlistData);
+            radioResults.querySelectorAll('.radio-insert-all-btn').forEach(button => {
+                button.disabled = !hasPlaylist;
+            });
+            radioResults.querySelectorAll('.radio-insert-btn').forEach(button => {
+                button.disabled = !hasPlaylist;
+                const item = button.closest('.radio-station');
+                const streamUrl = item && item.dataset.streamUrl;
+                const isInPlaylist = Boolean(streamUrl && playlistData.split(/\r?\n/).some(line => line.trim() === streamUrl));
+                setRadioInsertFeedback(button, isInPlaylist ? 'duplicate' : 'idle');
+            });
+        }
+
+        // Schließen des Dropdowns bei Klicks außerhalb
+        document.addEventListener('click', function(e) {
+            if (dropdownMenu && !dropdownMenu.contains(e.target) && !e.target.closest('#kebabBtn')) {
+                dropdownMenu.classList.remove('show');
+            }
+        });
+
+        function toggleSleepPause() {
+            if (sleepTimerMinutes === 0 || sleepTimeLeft <= 0) return;
+            isSleepPausedManually = !isSleepPausedManually;
+            updateTimerDisplays();
+        }
+
+        function toggleShufflePause() {
+            if (shuffleTimerMinutes === 0 || shuffleTimeLeft <= 0) return;
+            isShufflePausedManually = !isShufflePausedManually;
+            shuffleLastTickAt = isShufflePausedManually ? 0 : Date.now();
+            syncScreenWakeLock();
+            updateTimerDisplays();
+        }
+
+        function resetTimersToSelected() {
+            sleepTimeLeft = sleepTimerMinutes * 60;
+            isSleepPausedManually = false;
+            shuffleTimeLeft = shuffleTimerMinutes * 60;
+            isShufflePausedManually = false;
+            shuffleLastTickAt = activePlayer && !activePlayer.paused && shuffleTimerMinutes > 0 ? Date.now() : 0;
+            syncScreenWakeLock();
+            updateTimerDisplays();
+        }
+
+        if (setSleepBtn) {
+            setSleepBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                let val = parseInt(sleepInput.value) || 0;
+                if (val < 0) val = 0; if (val > 90) val = 90;
+                sleepInput.value = val;
+                localStorage.setItem('lastM3USleep', val);
+                sleepTimerMinutes = val;
+                sleepTimeLeft = val * 60;
+                isSleepPausedManually = false;
+                initCombinedTimer();
+            });
+        }
+
+        if (setShuffleBtn) {
+            setShuffleBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                let val = parseInt(shuffleInput.value) || 0;
+                if (val < 0) val = 0; if (val > 90) val = 90;
+                shuffleInput.value = val;
+                localStorage.setItem('lastM3UShuffle', val);
+                shuffleTimerMinutes = val;
+                shuffleTimeLeft = val * 60;
+                isShufflePausedManually = false;
+                shuffleLastTickAt = activePlayer && !activePlayer.paused && val > 0 ? Date.now() : 0;
+                initCombinedTimer();
+            });
+        }
+
+        function initCombinedTimer() {
+            clearInterval(timerInterval);
+            if (activePlayer && !activePlayer.paused && shuffleTimerMinutes > 0 && !isShufflePausedManually && !shuffleLastTickAt) {
+                shuffleLastTickAt = Date.now();
+            }
+            syncScreenWakeLock();
+            updateTimerDisplays();
+            if (sleepTimerMinutes === 0 && shuffleTimerMinutes === 0) return;
+
+            timerInterval = setInterval(tickCombinedTimer, 1000);
+        }
+
+        function tickCombinedTimer() {
+            if (!activePlayer || activePlayer.paused) {
+                shuffleLastTickAt = 0;
+                return;
+            }
+
+            if (sleepTimerMinutes > 0 && !isSleepPausedManually) {
+                sleepTimeLeft--;
+                if (sleepTimeLeft <= 0) {
+                    activePlayer.pause();
+                    sleepTimeLeft = sleepTimerMinutes * 60;
+                    timerStatus.innerHTML = "⏱️ Abgelaufen";
+                    timerStatus.classList.remove('timer-paused');
+                    return;
+                }
+            }
+            if (shuffleTimerMinutes > 0 && !isShufflePausedManually) {
+                const now = Date.now();
+                if (!shuffleLastTickAt) shuffleLastTickAt = now;
+                shuffleTimeLeft -= (now - shuffleLastTickAt) / 1000;
+                shuffleLastTickAt = now;
+                if (shuffleTimeLeft <= 0) {
+                    shuffleTimeLeft = 0;
+                    shuffleLastTickAt = 0;
+                    skipAttempts = 0;
+                    switchToNextStreamFromActiveTab(true);
+                    return;
+                }
+            }
+            updateTimerDisplays();
+        }
+
+        async function syncScreenWakeLock() {
+            const requestId = ++wakeLockRequestId;
+            const shouldHoldScreen = shuffleTimerMinutes > 0 && !isShufflePausedManually && !document.hidden;
+            if (!shouldHoldScreen) {
+                if (screenWakeLock) {
+                    const lock = screenWakeLock;
+                    screenWakeLock = null;
+                    await lock.release();
+                }
+                wakeLockStatus.textContent = '';
+                return;
+            }
+
+            if (!('wakeLock' in navigator)) {
+                wakeLockStatus.textContent = 'Dieser Browser kann den Bildschirm nicht wach halten. Android kann den Shuffle-Timer bei ausgeschaltetem Display anhalten.';
+                return;
+            }
+            if (screenWakeLock && !screenWakeLock.released) return;
+
+            try {
+                const lock = await navigator.wakeLock.request('screen');
+                if (requestId !== wakeLockRequestId ||
+                    shuffleTimerMinutes === 0 ||
+                    isShufflePausedManually ||
+                    document.hidden) {
+                    await lock.release();
+                    return;
+                }
+
+                screenWakeLock = lock;
+                wakeLockStatus.textContent = 'Bildschirm bleibt während des aktiven Shuffle-Timers eingeschaltet.';
+                lock.addEventListener('release', function() {
+                    if (screenWakeLock !== lock) return;
+                    screenWakeLock = null;
+                    if (shuffleTimerMinutes > 0 && !isShufflePausedManually && !document.hidden) {
+                        wakeLockStatus.textContent = 'Die Bildschirm-Wachhaltefunktion wurde vom Gerät beendet.';
+                    }
+                }, { once: true });
+            } catch (error) {
+                if (requestId !== wakeLockRequestId) return;
+                wakeLockStatus.textContent = `Bildschirm konnte nicht wach gehalten werden: ${error.message}`;
+            }
+        }
+
+        document.addEventListener('visibilitychange', function() {
+            syncScreenWakeLock();
+            if (!document.hidden) tickCombinedTimer();
+        });
+
+        function updateTimerDisplays() {
+            const currentSleepSetting = sleepTimerMinutes;
+            if (currentSleepSetting > 0 && sleepTimeLeft > 0) {
+                const m = Math.floor(sleepTimeLeft / 60), s = sleepTimeLeft % 60;
+                const iconClass = isSleepPausedManually ? '' : 'class="icon-flip"';
+                timerStatus.innerHTML = `<span ${iconClass}>⏳</span> ${m}:${s < 10 ? '0' : ''}${s}`;
+                if (isSleepPausedManually) timerStatus.classList.add('timer-paused');
+                else timerStatus.classList.remove('timer-paused');
+            } else {
+                timerStatus.innerHTML = ''; timerStatus.classList.remove('timer-paused');
+            }
+
+            const currentShuffleSetting = shuffleTimerMinutes;
+            if (currentShuffleSetting > 0 && shuffleTimeLeft > 0) {
+                const wholeSeconds = Math.ceil(shuffleTimeLeft);
+                const m = Math.floor(wholeSeconds / 60), s = wholeSeconds % 60;
+                const iconClass = isShufflePausedManually ? '' : 'class="icon-spin"';
+                shuffleStatus.innerHTML = `<span ${iconClass}>🔄</span> ${m}:${s < 10 ? '0' : ''}${s}`;
+                if (isShufflePausedManually) shuffleStatus.classList.add('timer-paused');
+                else shuffleStatus.classList.remove('timer-paused');
+            } else {
+                shuffleStatus.innerHTML = ''; shuffleStatus.classList.remove('timer-paused');
+            }
+        }
+
+        // Speicher- und Ladeprozess für das Verzeichnis (Files Tab)
+        function saveToDirectory(name, content) {
+            let playlists = JSON.parse(localStorage.getItem('agm3u_playlists')) || [];
+            playlists = playlists.filter(p => p.name !== name);
+            playlists.unshift({
+                name: name,
+                content: content,
+                date: new Date().toLocaleString('de-DE', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })
+            });
+            localStorage.setItem('agm3u_playlists', JSON.stringify(playlists));
+            renderDirectory();
+        }
+
+        function countM3UStreams(data) {
+            if (!data) return 0;
+            if (data.charCodeAt(0) === 0xFEFF) data = data.substring(1);
+            return new Set(data.split('\n').map(line => line.trim()).filter(line => line && !line.startsWith('#'))).size;
+        }
+
+        function renderDirectory() {
+            const listElement = document.getElementById('directory-list');
+            const countElement = document.getElementById('dir-count');
+            const playlists = JSON.parse(localStorage.getItem('agm3u_playlists')) || [];
+            const bundledContent = document.getElementById('bundled-christian-m3u').textContent.trim();
+            
+            closeFileContextMenu();
+            listElement.innerHTML = '';
+            countElement.textContent = playlists.length + 1;
+
+            const bundledItem = document.createElement('li');
+            bundledItem.className = 'directory-item';
+            bundledItem.innerHTML = `
+                <div class="file-info" onclick="loadBundledPlaylist()">
+                    <span class="file-name">_CHRISTIAN.m3u</span>
+                    <span class="file-date">(${countM3UStreams(bundledContent)}) · Fest eingebaut</span>
+                </div>
+            `;
+            listElement.appendChild(bundledItem);
+
+            playlists.forEach((playlist, index) => {
+                const li = document.createElement('li');
+                li.className = 'directory-item';
+                li.dataset.playlistIndex = String(index);
+                li.innerHTML = `
+                    <div class="file-info" onclick="loadFromDirectory(${index})">
+                        <span class="file-name">${playlist.name}</span>
+                        <span class="file-date">(${countM3UStreams(playlist.content)}) · Hinzugefügt am: ${playlist.date}</span>
+                    </div>
+                `;
+                listElement.appendChild(li);
+            });
+        }
+
+        function loadFromDirectory(index) {
+            const playlists = JSON.parse(localStorage.getItem('agm3u_playlists')) || [];
+            const selected = playlists[index];
+            if (selected) {
+                currentRadioStation = null;
+                lastPlayerTrackUrl = '';
+                fileNameDisplay.textContent = "Geladene Datei: " + selected.name;
+                localStorage.setItem('lastM3UFileName', "Geladene Datei: " + selected.name);
+                localStorage.setItem('lastM3USearchContext', selected.name);
+                localStorage.setItem('lastM3UData', selected.content);
+                searchBar.value = '';
+                setSearchPlaceholder(selected.name);
+                skipAttempts = 0;
+                resetTimersToSelected();
+                parseM3U(selected.content);
+                restoreM3ULastStreamSelection(selected.content);
+                switchTab('player-tab');
+            }
+        }
+
+        function loadBundledPlaylist() {
+            const content = document.getElementById('bundled-christian-m3u').textContent.trim();
+            const name = '_CHRISTIAN.m3u';
+            currentRadioStation = null;
+            lastPlayerTrackUrl = '';
+            fileNameDisplay.textContent = 'Geladene Datei: ' + name;
+            localStorage.setItem('lastM3UFileName', fileNameDisplay.textContent);
+            localStorage.setItem('lastM3USearchContext', name);
+            localStorage.setItem('lastM3UData', content);
+            searchBar.value = '';
+            setSearchPlaceholder(name);
+            skipAttempts = 0;
+            resetTimersToSelected();
+            parseM3U(content);
+            restoreM3ULastStreamSelection(content);
+            switchTab('player-tab');
+        }
+
+
+        function setSearchPlaceholder(fileName) {
+            const name = String(fileName || '').replace(/^Geladene Datei:\s*/, '').trim();
+            searchBar.placeholder = name ? `Suchen in: ${name}` : 'Stream suchen...';
+        }
+
+        function removeStreamFromPlaylist(streamUrl) {
+            const playlistData = localStorage.getItem('lastM3UData');
+            if (!playlistData) {
+                streamContextStatus.textContent = 'Keine geladene Playlist zum Bearbeiten vorhanden.';
+                return;
+            }
+
+            const lines = playlistData.split(/\r?\n/);
+            const removeLines = new Set();
+            lines.forEach((line, index) => {
+                if (line.trim() !== streamUrl) return;
+
+                let entryStart = index;
+                for (let cursor = index - 1; cursor >= 0; cursor--) {
+                    const previousLine = lines[cursor].trim();
+                    if (previousLine.startsWith('#EXTINF:')) {
+                        entryStart = cursor;
+                        break;
+                    }
+                    if (previousLine && !previousLine.startsWith('#')) break;
+                }
+                for (let cursor = entryStart; cursor <= index; cursor++) removeLines.add(cursor);
+            });
+
+            const updatedPlaylist = lines.filter((_, index) => !removeLines.has(index)).join('\n');
+            if (removeLines.size === 0) {
+                streamContextStatus.textContent = 'Der Stream wurde in der gespeicherten Playlist nicht gefunden.';
+                return;
+            }
+
+            const removingActiveStream = currentPlayingUrl === streamUrl;
+            if (removingActiveStream) {
+                if (activePlayer) {
+                    activePlayer.pause();
+                    activePlayer.removeAttribute('src');
+                    activePlayer.load();
+                    activePlayer.classList.remove('fade-out');
+                    activePlayer.volume = 1;
+                }
+                if (hls) {
+                    hls.destroy();
+                    hls = null;
+                }
+                clearTimeout(errorTimeout);
+                currentRadioStation = null;
+                currentPlayingUrl = '';
+                lastPlayerTrackUrl = '';
+                activePlayer = null;
+                localStorage.removeItem('lastM3UTrack');
+                localStorage.removeItem('lastM3UTime');
+            }
+            localStorage.setItem('lastM3UData', updatedPlaylist);
+            const loadedName = (localStorage.getItem('lastM3UFileName') || '').replace(/^Geladene Datei:\s*/, '').trim();
+            if (loadedName === '_CHRISTIAN.m3u') {
+                document.getElementById('bundled-christian-m3u').textContent = updatedPlaylist;
+            }
+            parseM3U(updatedPlaylist);
+            updatePlaybackButton();
+
+            const savedPlaylists = JSON.parse(localStorage.getItem('agm3u_playlists') || '[]');
+            const savedPlaylist = savedPlaylists.find(playlist => playlist.name === loadedName);
+            if (savedPlaylist) {
+                savedPlaylist.content = updatedPlaylist;
+                localStorage.setItem('agm3u_playlists', JSON.stringify(savedPlaylists));
+                renderDirectory();
+            }
+
+            streamContextStatus.textContent = `„${streamContextTitle.textContent}“ wurde aus der Playlist gelöscht.`;
+            deleteStreamMenuItem.disabled = true;
+        }
+
+        function closeStreamContextMenu() {
+            streamContextMenu.classList.remove('show');
+            contextStreamUrl = '';
+        }
+
+        function getValidHomepageUrl(value) {
+            if (!value) return '';
+            try {
+                const url = new URL(value);
+                return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
+            } catch (error) {
+                return '';
+            }
+        }
+
+        function getStreamHomepage(streamUrl) {
+            const track = playlistTracks.find(item => item.url === streamUrl);
+            const extinfLine = track && track.infoLines && track.infoLines.find(line => line.trim().startsWith('#EXTINF:'));
+            const metadataMatch = extinfLine && extinfLine.match(/(?:^|\s)homepage=(["'])(.*?)\1/i);
+            const playlistHomepage = getValidHomepageUrl(metadataMatch && metadataMatch[2]);
+            if (playlistHomepage) return playlistHomepage;
+
+            const matchesStream = station => station && (station.url === streamUrl || station.url_resolved === streamUrl);
+            const station = (currentRadioStation && matchesStream(currentRadioStation) ? currentRadioStation : null) ||
+                Array.from(radioResults.querySelectorAll('.radio-station'), item => item.radioStation).find(matchesStream);
+            return getValidHomepageUrl(station && station.homepage);
+        }
+
+        function openHomepage(homepageUrl) {
+            const validHomepageUrl = getValidHomepageUrl(homepageUrl);
+            if (validHomepageUrl) window.open(validHomepageUrl, '_blank', 'noopener,noreferrer');
+        }
+
+        function showStreamInfo(streamUrl, radioBrowserStation = null) {
+            const track = playlistTracks.find(item => item.url === streamUrl);
+            const selectedOption = Array.from(playlistSelect.options).find(option => option.value === streamUrl);
+            const streamTitle = radioBrowserStation ? radioBrowserStation.name :
+                track ? track.title : selectedOption ? selectedOption.textContent : 'Unbekannter Stream';
+            const infoRows = [
+                ['Name', streamTitle],
+                ['Stream-URL', streamUrl],
+                ['Playlist', track ? fileNameDisplay.textContent || 'Unbekannt' : 'Nicht in der Player-Playlist'],
+                ['Wiedergabe', currentPlayingUrl === streamUrl && activePlayer && !activePlayer.paused
+                    ? 'Wird gerade abgespielt'
+                    : playlistSelect.value === streamUrl ? 'Ausgewählt, nicht abgespielt' : 'Nicht ausgewählt']
+            ];
+            if (track && track.infoLines && track.infoLines.length) {
+                infoRows.push(['M3U-Metadaten', track.infoLines.join('\n')]);
+            } else {
+                infoRows.push(['M3U-Metadaten', 'Keine zusätzlichen M3U-Metadaten vorhanden.']);
+            }
+
+            streamInfoTitle.textContent = streamTitle;
+            streamInfoDetails.replaceChildren();
+            infoRows.forEach(([label, value]) => appendStreamInfoRow(label, value));
+            streamInfoDialog.showModal();
+            if (radioBrowserStation) {
+                appendRadioBrowserStationInfo(radioBrowserStation);
+            } else {
+                const radioBrowserStatus = appendStreamInfoRow('Radio-Browser', 'Senderdaten werden geladen ...');
+                fetchRadioBrowserStationInfo(streamUrl, streamTitle, radioBrowserStatus);
+            }
+        }
+
+        function appendStreamInfoRow(label, value) {
+            const term = document.createElement('dt');
+            term.textContent = label;
+            const description = document.createElement('dd');
+            description.textContent = value;
+            streamInfoDetails.append(term, description);
+            return description;
+        }
+
+        function appendRadioBrowserStationInfo(station) {
+            appendStreamInfoRow('Radio-Browser', 'Zusätzliche Senderdaten:');
+            Object.entries(station).forEach(([key, value]) => {
+                const displayValue = value === null || value === undefined || value === ''
+                    ? '–'
+                    : typeof value === 'object' ? JSON.stringify(value) : String(value);
+                appendStreamInfoRow(key.replace(/_/g, ' '), displayValue);
+            });
+        }
+
+        async function fetchRadioBrowserStationInfo(streamUrl, streamTitle, statusElement) {
+            if (streamInfoRequestController) streamInfoRequestController.abort();
+            const controller = new AbortController();
+            streamInfoRequestController = controller;
+            try {
+                const searchName = streamTitle.replace(/\s*[-–|]\s*\d+\s*kbit\/s(?:\s*[-–|]\s*\d+\s*kbit\/s)*\s*$/i, '').trim();
+                const params = new URLSearchParams({ name: searchName, limit: '100' });
+                const response = await fetch(`https://all.api.radio-browser.info/json/stations/search?${params}`, {
+                    signal: controller.signal
+                });
+                if (!response.ok) throw new Error(`Radio-Browser antwortet mit HTTP ${response.status}.`);
+                const stations = await response.json();
+                if (!Array.isArray(stations)) throw new Error('Die Radio-Browser-Antwort hat ein unerwartetes Format.');
+                if (controller !== streamInfoRequestController || !streamInfoDialog.open) return;
+
+                statusElement.previousElementSibling.remove();
+                statusElement.remove();
+                const matchesStream = item => item && (item.url === streamUrl || item.url_resolved === streamUrl);
+                const station = stations.find(matchesStream) ||
+                    (currentRadioStation && matchesStream(currentRadioStation) ? currentRadioStation : null) ||
+                    Array.from(radioResults.querySelectorAll('.radio-station'), item => item.radioStation).find(matchesStream);
+                if (!station) {
+                    appendStreamInfoRow('Radio-Browser', 'Für diese Stream-URL wurde kein Senderdatensatz gefunden.');
+                    return;
+                }
+
+                appendRadioBrowserStationInfo(station);
+            } catch (error) {
+                if (error.name === 'AbortError' || controller !== streamInfoRequestController) return;
+                statusElement.textContent = `Senderdaten konnten nicht geladen werden: ${error.message}`;
+            }
+        }
+
+        streamInfoDialog.addEventListener('close', function() {
+            if (streamInfoRequestController) {
+                streamInfoRequestController.abort();
+                streamInfoRequestController = null;
+            }
+        });
+
+        streamInfoClose.addEventListener('click', function() {
+            streamInfoDialog.close();
+        });
+
+        playlistListView.addEventListener('contextmenu', function(event) {
+            event.preventDefault();
+            const clickedTrack = event.target instanceof Element
+                ? event.target.closest('.playlist-track')
+                : null;
+            if (!clickedTrack || !playlistListView.contains(clickedTrack)) {
+                closeStreamContextMenu();
+                return;
+            }
+
+            contextStreamUrl = clickedTrack.dataset.streamUrl;
+            streamContextTitle.textContent = clickedTrack.textContent;
+            streamContextStatus.textContent = '';
+            streamInfoMenuItem.disabled = false;
+            streamHomepageMenuItem.hidden = !getStreamHomepage(contextStreamUrl);
+            deleteStreamMenuItem.disabled = false;
+            streamContextMenu.classList.add('show');
+
+            const margin = 8;
+            const menuRect = streamContextMenu.getBoundingClientRect();
+            const left = Math.min(Math.max(margin, event.clientX), window.innerWidth - menuRect.width - margin);
+            const top = Math.min(Math.max(margin, event.clientY), window.innerHeight - menuRect.height - margin);
+            streamContextMenu.style.left = `${left}px`;
+            streamContextMenu.style.top = `${top}px`;
+        });
+
+        streamInfoMenuItem.addEventListener('click', function() {
+            if (!contextStreamUrl) return;
+            const streamUrl = contextStreamUrl;
+            closeStreamContextMenu();
+            showStreamInfo(streamUrl);
+        });
+
+        streamHomepageMenuItem.addEventListener('click', function() {
+            if (!contextStreamUrl) return;
+            const homepageUrl = getStreamHomepage(contextStreamUrl);
+            closeStreamContextMenu();
+            if (homepageUrl) openHomepage(homepageUrl);
+        });
+
+        deleteStreamMenuItem.addEventListener('click', function() {
+            if (!contextStreamUrl) return;
+            pendingDeleteStreamUrl = contextStreamUrl;
+            deleteStreamConfirmText.textContent = `${streamContextTitle.textContent} unwiderruflich löschen?`;
+            streamContextMenu.classList.remove('show');
+            deleteStreamConfirmDialog.showModal();
+        });
+
+        deleteStreamConfirmYes.addEventListener('click', function() {
+            const streamUrl = pendingDeleteStreamUrl;
+            pendingDeleteStreamUrl = '';
+            deleteStreamConfirmDialog.close();
+            if (streamUrl) removeStreamFromPlaylist(streamUrl);
+            closeStreamContextMenu();
+        });
+
+        deleteStreamConfirmNo.addEventListener('click', function() {
+            pendingDeleteStreamUrl = '';
+            deleteStreamConfirmDialog.close();
+            closeStreamContextMenu();
+        });
+
+        deleteStreamConfirmDialog.addEventListener('cancel', function() {
+            pendingDeleteStreamUrl = '';
+            closeStreamContextMenu();
+        });
+
+        document.addEventListener('click', function(event) {
+            if (!streamContextMenu.contains(event.target) && !playlistListView.contains(event.target)) {
+                closeStreamContextMenu();
+            }
+        });
+
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') closeStreamContextMenu();
+        });
+
+        function closeFileContextMenu() {
+            fileContextMenu.classList.remove('show');
+            contextFileIndex = null;
+        }
+
+        function openFileContextMenu(item, clientX, clientY) {
+            const index = Number(item.dataset.playlistIndex);
+            const playlists = JSON.parse(localStorage.getItem('agm3u_playlists')) || [];
+            const playlist = playlists[index];
+            if (!playlist) {
+                closeFileContextMenu();
+                return;
+            }
+
+            contextFileIndex = index;
+            fileContextTitle.textContent = playlist.name;
+            fileContextMenu.classList.add('show');
+            const margin = 8;
+            const menuRect = fileContextMenu.getBoundingClientRect();
+            fileContextMenu.style.left = `${Math.min(Math.max(margin, clientX), window.innerWidth - menuRect.width - margin)}px`;
+            fileContextMenu.style.top = `${Math.min(Math.max(margin, clientY), window.innerHeight - menuRect.height - margin)}px`;
+        }
+
+        directoryList.addEventListener('contextmenu', function(event) {
+            const item = event.target.closest('.directory-item');
+            if (!item || item.dataset.playlistIndex === undefined) {
+                closeFileContextMenu();
+                return;
+            }
+            event.preventDefault();
+            clearTimeout(directoryLongPressTimer);
+            openFileContextMenu(item, event.clientX, event.clientY);
+        });
+
+        directoryList.addEventListener('pointerdown', function(event) {
+            const fileName = event.target.closest('.file-name');
+            const fileInfo = fileName && fileName.closest('.file-info');
+            const item = fileInfo && fileInfo.closest('.directory-item');
+            if (!item || item.dataset.playlistIndex === undefined || event.pointerType !== 'touch') return;
+
+            clearTimeout(directoryLongPressTimer);
+            directoryLongPressTimer = setTimeout(function() {
+                ignoreDirectoryClickUntil = Date.now() + 1000;
+                openFileContextMenu(item, event.clientX, event.clientY);
+            }, 550);
+        });
+
+        ['pointerup', 'pointercancel', 'pointerleave'].forEach(eventName => {
+            directoryList.addEventListener(eventName, function() {
+                clearTimeout(directoryLongPressTimer);
+            });
+        });
+
+        directoryList.addEventListener('click', function(event) {
+            if (Date.now() > ignoreDirectoryClickUntil) return;
+            ignoreDirectoryClickUntil = 0;
+            event.preventDefault();
+            event.stopImmediatePropagation();
+        }, true);
+
+        deleteFileMenuItem.addEventListener('click', function(event) {
+            if (contextFileIndex === null) return;
+            event.stopPropagation();
+            const playlists = JSON.parse(localStorage.getItem('agm3u_playlists')) || [];
+            const playlist = playlists[contextFileIndex];
+            if (!playlist) {
+                closeFileContextMenu();
+                return;
+            }
+            pendingDeleteFile = { index: contextFileIndex, name: playlist.name };
+            deleteFileConfirmText.textContent = `${playlist.name} unwiderruflich löschen?`;
+            closeFileContextMenu();
+            deleteFileConfirmDialog.showModal();
+        });
+
+        deleteFileConfirmYes.addEventListener('click', function() {
+            const pendingFile = pendingDeleteFile;
+            pendingDeleteFile = null;
+            deleteFileConfirmDialog.close();
+            if (pendingFile) deleteFromDirectory(pendingFile.index, pendingFile.name);
+        });
+
+        deleteFileConfirmNo.addEventListener('click', function() {
+            pendingDeleteFile = null;
+            deleteFileConfirmDialog.close();
+        });
+
+        deleteFileConfirmDialog.addEventListener('cancel', function() {
+            pendingDeleteFile = null;
+        });
+
+        document.addEventListener('click', function(event) {
+            if (!fileContextMenu.contains(event.target)) closeFileContextMenu();
+        });
+
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') closeFileContextMenu();
+        });
+
+        function deleteFromDirectory(index, expectedName) {
+            let playlists = JSON.parse(localStorage.getItem('agm3u_playlists')) || [];
+            if (!playlists[index] || playlists[index].name !== expectedName) return;
+            playlists.splice(index, 1);
+            localStorage.setItem('agm3u_playlists', JSON.stringify(playlists));
+            renderDirectory();
+        }
+
+        window.addEventListener('DOMContentLoaded', function() {
+            renderDirectory();
+            radioSearchInput.value = localStorage.getItem('lastRadioBrowserSearch') || '';
+            const saved = localStorage.getItem('lastM3UData');
+            if (saved) {
+                searchBar.value = localStorage.getItem('lastM3USearch') || '';
+                const savedName = localStorage.getItem('lastM3UFileName');
+                if (savedName) fileNameDisplay.textContent = savedName;
+                const searchContext = localStorage.getItem('lastM3USearchContext') || savedName || 'Playlist';
+                setSearchPlaceholder(searchContext);
+                parseM3U(saved);
+                restoreM3ULastStreamSelection(saved);
+
+                const track = localStorage.getItem('lastM3UTrack');
+                if (track && playlistSelect.querySelector('option[value="' + track + '"]')) {
+                    playlistSelect.value = track;
+                    lastPlayerTrackUrl = track;
+                    currentPlayingUrl = track;
+                    try { playMedia(track, parseFloat(localStorage.getItem('lastM3UTime')) || 0, false); } catch(err) {}
+                }
+            } else {
+                loadBundledPlaylist();
+            }
+
+            const savedTimer = parseInt(localStorage.getItem('lastM3USleep') || '0');
+            sleepTimerMinutes = savedTimer > 0 && savedTimer <= 90 ? savedTimer : 0;
+            sleepInput.value = sleepTimerMinutes;
+            sleepTimeLeft = sleepTimerMinutes * 60;
+            const savedShuffle = parseInt(localStorage.getItem('lastM3UShuffle') || '0');
+            shuffleTimerMinutes = savedShuffle > 0 && savedShuffle <= 90 ? savedShuffle : 0;
+            shuffleInput.value = shuffleTimerMinutes;
+            shuffleTimeLeft = shuffleTimerMinutes * 60;
+            initCombinedTimer();
+            if (timerStatus) timerStatus.addEventListener('click', toggleSleepPause);
+            if (shuffleStatus) shuffleStatus.addEventListener('click', toggleShufflePause);
+        });
+
+        function switchToNextStream(immediate = false) {
+            const currentOptions = Array.from(playlistSelect.querySelectorAll('option')).filter(o => o.value !== "");
+            if (currentOptions.length <= 1) {
+                if (shuffleTimerMinutes > 0) {
+                    shuffleTimeLeft = shuffleTimerMinutes * 60;
+                    shuffleLastTickAt = Date.now();
+                }
+                updateTimerDisplays(); return;
+            }
+            if (skipAttempts >= currentOptions.length) {
+                console.log("Alle Streams in der Liste sind defekt. Automatischer Wechsel gestoppt.");
+                if (activePlayer) activePlayer.pause();
+                shuffleLastTickAt = 0;
+                skipAttempts = 0; return;
+            }
+            let currentIndex = currentOptions.findIndex(o => o.value === playlistSelect.value);
+            let nextIndex = currentIndex + 1;
+            if (nextIndex >= currentOptions.length) nextIndex = 0;
+
+            const nextTrackUrl = currentOptions[nextIndex].value;
+            currentRadioStation = null;
+            lastPlayerTrackUrl = nextTrackUrl;
+            playlistSelect.value = nextTrackUrl;
+            currentPlayingUrl = nextTrackUrl;
+            localStorage.setItem('lastM3UTrack', nextTrackUrl);
+            localStorage.removeItem('lastM3UTime');
+
+            if (shuffleTimerMinutes > 0) {
+                shuffleTimeLeft = shuffleTimerMinutes * 60;
+                shuffleLastTickAt = Date.now();
+            }
+            isShufflePausedManually = false;
+            updateTimerDisplays();
+            playMedia(nextTrackUrl, 0, true, immediate);
+        }
+
+        function switchToNextStreamFromActiveTab(immediate = false) {
+            if (activeTabId !== 'radio-tab') {
+                switchToNextStream(immediate);
+                return;
+            }
+
+            const stations = Array.from(radioResults.querySelectorAll('.radio-station'), item => item.radioStation);
+            if (!stations.length) {
+                shuffleTimeLeft = shuffleTimerMinutes * 60;
+                shuffleLastTickAt = Date.now();
+                updateTimerDisplays();
+                radioSearchStatus.textContent = 'Keine Sender im Browser verfügbar; Shuffle-Timer wurde zurückgesetzt.';
+                return;
+            }
+            if (skipAttempts >= stations.length) {
+                console.log('Alle Streams in der Browserliste sind defekt. Automatischer Wechsel gestoppt.');
+                if (activePlayer) activePlayer.pause();
+                shuffleLastTickAt = 0;
+                skipAttempts = 0;
+                return;
+            }
+
+            const currentIndex = stations.findIndex(station =>
+                station.stationuuid === (currentRadioStation && currentRadioStation.stationuuid) ||
+                (station.url_resolved || station.url) === currentPlayingUrl
+            );
+            if (stations.length === 1 && currentIndex === 0) {
+                shuffleTimeLeft = shuffleTimerMinutes * 60;
+                shuffleLastTickAt = Date.now();
+                updateTimerDisplays();
+                radioSearchStatus.textContent = 'Keine weiteren Sender im Browser verfügbar.';
+                return;
+            }
+
+            const nextIndex = currentIndex < 0 || currentIndex === stations.length - 1 ? 0 : currentIndex + 1;
+            shuffleTimeLeft = shuffleTimerMinutes * 60;
+            shuffleLastTickAt = Date.now();
+            isShufflePausedManually = false;
+            updateTimerDisplays();
+            playRadioStation(stations[nextIndex], immediate);
+        }
+
+        if (m3uInput) {
+            m3uInput.addEventListener('change', function(e) {
+                if (!e.target.files || e.target.files.length === 0) return;
+
+                if (hls) { hls.destroy(); hls = null; }
+                if (activePlayer) {
+                    activePlayer.pause();
+                    activePlayer.src = "";
+                    activePlayer.load();
+                }
+                clearTimeout(errorTimeout);
+                currentRadioStation = null;
+                currentPlayingUrl = "";
+                localStorage.removeItem('lastM3UTrack');
+                localStorage.removeItem('lastM3UTime');
+
+                const files = e.target.files;
+                let combinedText = "";
+                let fileNames = [];
+                let filesRead = 0;
+
+                for (let i = 0; i < files.length; i++) {
+                    const reader = new FileReader();
+                    const nameOfFile = files[i].name;
+                    fileNames.push(nameOfFile);
+                    
+                    reader.onload = function(event) {
+                        const fileContent = event.target.result;
+                        combinedText += "\n" + fileContent;
+                        
+                        // Jede Datei einzeln im Verzeichnis hinterlegen
+                        saveToDirectory(nameOfFile, fileContent);
+                        
+                        filesRead++;
+                        if (filesRead === files.length) {
+                            const labelText = files.length > 1 ? files.length + " Playlists geladen" : "Geladene Datei: " + fileNames.join(", ");
+                            fileNameDisplay.textContent = labelText;
+                            localStorage.setItem('lastM3UFileName', labelText);
+                            const searchContext = fileNames.join(', ');
+                            localStorage.setItem('lastM3USearchContext', searchContext);
+                            setSearchPlaceholder(searchContext);
+                            searchBar.value = ''; skipAttempts = 0;
+                            resetTimersToSelected();
+                            localStorage.setItem('lastM3UData', combinedText);
+                            parseM3U(combinedText);
+                            restoreM3ULastStreamSelection(combinedText);
+                            dropdownMenu.classList.remove('show');
+                        }
+                    };
+                    reader.readAsText(files[i]);
+                }
+            });
+        }
+
+        function parseM3U(data) {
+            playlistTracks = []; 
+            let title = ''; 
+            let infoLines = [];
+            const seenUrls = new Set();
+            
+            if (data.charCodeAt(0) === 0xFEFF) {
+                data = data.substr(1);
+            }
+
+            data.split('\n').forEach(function(l) {
+                l = l.trim(); if (!l) return;
+                if (l.indexOf('#EXTINF:') === 0) {
+                    const c = l.indexOf(','); title = c !== -1 ? l.substring(c + 1).trim() : 'Unbekannter Titel';
+                    infoLines = [l];
+                } else if (l.indexOf('#') !== 0) {
+                    if (!seenUrls.has(l)) { seenUrls.add(l); playlistTracks.push({title: title || l, url: l, infoLines: [...infoLines]}); }
+                    title = '';
+                    infoLines = [];
+                } else if (infoLines.length) {
+                    infoLines.push(l);
+                }
+            });
+            filterAndRender();
+            updateRadioInsertButtons();
+        }
+
+        function getM3ULastStreamMarker(data) {
+            const indexMatch = data.match(/#AGSLEP_LAST_INDEX\s*:\s*(\d+)/i);
+            const streamMatch = data.match(/#AGSLEP_LAST_STREAM\s*:\s*([^#\r\n]*?)(?=\s+#|[\r\n]|$)/i);
+            return {
+                index: indexMatch ? Number(indexMatch[1]) : null,
+                title: streamMatch ? streamMatch[1].trim() : ''
+            };
+        }
+
+        function restoreM3ULastStreamSelection(data) {
+            const marker = getM3ULastStreamMarker(data);
+            const markedTrack = Number.isInteger(marker.index) && marker.index >= 0
+                ? playlistTracks[marker.index]
+                : null;
+            const track = markedTrack || (marker.title
+                ? playlistTracks.find(item => item.title.toLocaleLowerCase() === marker.title.toLocaleLowerCase())
+                : null);
+            if (!track) return false;
+
+            currentPlayingUrl = track.url;
+            lastPlayerTrackUrl = track.url;
+            playlistSelect.value = track.url;
+            localStorage.setItem('lastM3UTrack', track.url);
+            localStorage.removeItem('lastM3UTime');
+            updateMediaSessionMetadata();
+            updatePlaybackButton();
+            return true;
+        }
+
+        function updateM3ULastStreamMarker(streamUrl) {
+            const playlistData = localStorage.getItem('lastM3UData');
+            const trackIndex = playlistTracks.findIndex(track => track.url === streamUrl);
+            if (!playlistData || trackIndex < 0) return;
+
+            const track = playlistTracks[trackIndex];
+            const safeTitle = track.title.replace(/[\r\n]/g, ' ').trim();
+            const lines = playlistData.replace(/^\uFEFF/, '').split(/\r?\n/).filter(line => !/#AGSLEP_LAST_(?:INDEX|STREAM)\s*:/i.test(line));
+            const headerIndex = lines.findIndex(line => line.trim().toUpperCase() === '#EXTM3U');
+            const markerLines = [`#AGSLEP_LAST_INDEX:${trackIndex}`, `#AGSLEP_LAST_STREAM:${safeTitle}`];
+            lines.splice(headerIndex >= 0 ? headerIndex + 1 : 0, 0, ...markerLines);
+            const updatedPlaylist = `${lines.join('\n').replace(/\n+$/, '')}\n`;
+            localStorage.setItem('lastM3UData', updatedPlaylist);
+
+            const loadedName = (localStorage.getItem('lastM3UFileName') || '').replace(/^Geladene Datei:\s*/, '').trim();
+            const savedPlaylists = JSON.parse(localStorage.getItem('agm3u_playlists') || '[]');
+            const savedPlaylist = savedPlaylists.find(playlist => playlist.name === loadedName);
+            if (savedPlaylist) {
+                savedPlaylist.content = updatedPlaylist;
+                localStorage.setItem('agm3u_playlists', JSON.stringify(savedPlaylists));
+                renderDirectory();
+            }
+            updatePlaylistContextMenu();
+        }
+
+        function filterAndRender() {
+            const txt = searchBar.value ? searchBar.value.toLowerCase() : '';
+            const filtered = playlistTracks.filter(x => x.title.toLowerCase().includes(txt));
+            renderPlaylist(filtered, txt.length > 0);
+        }
+
+        function renderPlaylist(tracks, isSearch = false) {
+            playlistSelect.innerHTML = '';
+            playlistListView.replaceChildren();
+            if (tracks.length === 0) {
+                const message = playlistTracks.length === 0
+                    ? '-- Keine Streams in dieser Liste --'
+                    : '-- Keine Treffer in M3U --';
+                const option = document.createElement('option');
+                option.value = '';
+                option.textContent = message;
+                playlistSelect.appendChild(option);
+                const emptyMessage = document.createElement('div');
+                emptyMessage.className = 'playlist-empty';
+                emptyMessage.textContent = message;
+                playlistListView.appendChild(emptyMessage);
+                closeStreamContextMenu();
+                return;
+            }
+            if (isSearch) {
+                const placeholder = document.createElement('option');
+                placeholder.value = '';
+                placeholder.textContent = '-- Bitte Titel wählen... --';
+                playlistSelect.appendChild(placeholder);
+            }
+            tracks.forEach(function(x) {
+                const o = document.createElement('option'); o.value = x.url; o.textContent = x.title;
+                if (x.url === currentPlayingUrl) o.selected = true;
+                playlistSelect.appendChild(o);
+
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'playlist-track';
+                button.dataset.streamUrl = x.url;
+                button.textContent = x.title;
+                button.setAttribute('aria-pressed', 'false');
+                playlistListView.appendChild(button);
+            });
+            if (!isSearch && currentPlayingUrl) playlistSelect.value = currentPlayingUrl;
+            else if (isSearch) playlistSelect.value = "";
+            updatePlaylistOptionHighlight();
+        }
+
+        if (searchBar) {
+            searchBar.addEventListener('input', function(e) {
+                localStorage.setItem('lastM3USearch', e.target.value);
+                skipAttempts = 0; resetTimersToSelected(); filterAndRender();
+            });
+        }
+
+        if (playlistSelect) {
+            playlistSelect.addEventListener('change', function(e) {
+                const u = e.target.value; if (!u || u.startsWith('--')) return;
+                currentRadioStation = null;
+                lastPlayerTrackUrl = u;
+                currentPlayingUrl = u; localStorage.setItem('lastM3UTrack', u);
+                localStorage.removeItem('lastM3UTime'); skipAttempts = 0;
+                closeStreamContextMenu();
+                resetTimersToSelected(); playMedia(u, 0, true);
+            });
+        }
+
+        playlistListView.addEventListener('click', function(event) {
+            const button = event.target instanceof Element
+                ? event.target.closest('.playlist-track')
+                : null;
+            if (!button || !playlistListView.contains(button)) return;
+            const streamUrl = button.dataset.streamUrl;
+            if (!currentRadioStation && currentPlayingUrl === streamUrl &&
+                activePlayer && !activePlayer.paused && !activePlayer.ended) {
+                closeStreamContextMenu();
+                stopCurrentStream();
+                return;
+            }
+            playlistSelect.value = streamUrl;
+            playlistSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        function fadeVolumeOut(player, callback) {
+            if (!player || player.paused) {
+                if (callback) callback();
+                return;
+            }
+            let volume = player.volume;
+            const interval = 50; 
+            const step = volume / (500 / interval); 
+
+            const fadeInterval = setInterval(() => {
+                if (volume > step) {
+                    volume -= step;
+                    player.volume = volume;
+                } else {
+                    clearInterval(fadeInterval);
+                    player.volume = 0;
+                    if (callback) callback();
+                }
+            }, interval);
+        }
+
+        function fadeVolumeIn(player) {
+            if (!player) return;
+            player.volume = 0;
+            let volume = 0;
+            const targetVolume = 1.0; 
+            const interval = 50;
+            const step = targetVolume / (500 / interval); 
+
+            const fadeInterval = setInterval(() => {
+                if (volume < targetVolume - step) {
+                    volume += step;
+                    player.volume = volume;
+                } else {
+                    clearInterval(fadeInterval);
+                    player.volume = targetVolume;
+                }
+            }, interval);
+        }
+
+        function playMedia(url, time = 0, triggerPlay = true, immediate = false) {
+            clearTimeout(errorTimeout);
+            if (hls) { hls.destroy(); hls = null; }
+
+            if (!url) {
+                if (activePlayer) {
+                    activePlayer.pause();
+                    activePlayer.src = "";
+                    try { activePlayer.load(); } catch(e) {}
+                }
+                return;
+            }
+
+            if (activePlayer && triggerPlay && !immediate) {
+                activePlayer.classList.add('fade-out');
+                fadeVolumeOut(activePlayer, () => {
+                    activePlayer.pause();
+                    setupNewMedia(url, time, triggerPlay);
+                });
+                return;
+            }
+
+            if (activePlayer) activePlayer.pause();
+            setupNewMedia(url, time, triggerPlay);
+        }
+
+        function setupNewMedia(url, time, triggerPlay) {
+            const isVid = /\.(mp4|m3u8|webm|ts)/i.test(url) || url.includes('type=video') || url.includes('m3u8') || url.includes('.ts');
+            audioPlayer.style.display = isVid ? 'none' : 'block';
+            videoPlayer.style.display = isVid ? 'block' : 'none';
+
+            activePlayer = isVid ? videoPlayer : audioPlayer;
+            updateMediaSessionMetadata();
+            updatePlaybackButton();
+
+            if (isVid && (url.includes('m3u8') || url.endsWith('.m3u8'))) {
+                if (Hls.isSupported()) {
+                    hls = new Hls();
+                    hls.loadSource(url);
+                    hls.attachMedia(activePlayer);
+                } else if (activePlayer.canPlayType('application/vnd.apple.mpegurl')) {
+                    activePlayer.src = url;
+                }
+            } else {
+                activePlayer.src = url;
+            }
+
+            if (triggerPlay) {
+                activePlayer.classList.add('fade-out');
+                activePlayer.volume = 0;
+            } else {
+                activePlayer.volume = 1.0;
+            }
+
+            activePlayer.onerror = function() {
+                if (!triggerPlay || !currentPlayingUrl) return;
+                clearTimeout(errorTimeout);
+                errorTimeout = setTimeout(function() {
+                    if (!activePlayer.src && !hls || !currentPlayingUrl) return;
+                    if (activePlayer.error || activePlayer.paused) {
+                        console.log("Stream dauerhaft defekt. Schalte weiter...");
+                        activePlayer.classList.remove('fade-out'); activePlayer.volume = 1.0;
+                        skipAttempts++; switchToNextStreamFromActiveTab(true);
+                    }
+                }, 5000);
+            };
+
+            activePlayer.onwaiting = function() {
+                if (!triggerPlay || !currentPlayingUrl) return;
+                clearTimeout(errorTimeout);
+                errorTimeout = setTimeout(function() {
+                    if (!activePlayer.src && !hls || !currentPlayingUrl) return;
+                    console.log("Stream puffert zu lange. Schalte weiter...");
+                    activePlayer.classList.remove('fade-out'); activePlayer.volume = 1.0;
+                    skipAttempts++; switchToNextStreamFromActiveTab(true);
+                }, 5000);
+            };
+
+            activePlayer.addEventListener('timeupdate', function() {
+                if (!currentPlayingUrl) return;
+                if (activePlayer.currentTime > 0) {
+                    clearTimeout(errorTimeout); skipAttempts = 0;
+                    if (!currentRadioStation) localStorage.setItem('lastM3UTime', activePlayer.currentTime);
+                }
+            });
+
+            activePlayer.addEventListener('play', function() {
+                if (shuffleTimerMinutes > 0 && !isShufflePausedManually && !shuffleLastTickAt) {
+                    shuffleLastTickAt = Date.now();
+                }
+                initCombinedTimer();
+            });
+            activePlayer.addEventListener('play', function() {
+                playbackStatus.textContent = '';
+                playbackStatus.classList.remove('show');
+                updateM3ULastStreamMarker(currentPlayingUrl);
+                updatePlaybackButton();
+            });
+            activePlayer.addEventListener('pause', function() {
+                shuffleLastTickAt = 0;
+                updatePlaybackButton();
+            });
+            activePlayer.addEventListener('ended', updatePlaybackButton);
+            activePlayer.load();
+
+            activePlayer.addEventListener('loadedmetadata', function() {
+                if (!url || !currentPlayingUrl) return;
+                activePlayer.currentTime = time;
+                if (!triggerPlay) {
+                    activePlayer.classList.remove('fade-out'); activePlayer.volume = 1.0;
+                }
+            }, { once: true });
+
+            if (triggerPlay) {
+                const player = activePlayer;
+                const playRequest = player.play();
+                if (playRequest) {
+                    playRequest.then(() => {
+                        if (activePlayer !== player || currentPlayingUrl !== url) return;
+                        updatePlaybackButton();
+                        setTimeout(() => {
+                            if (activePlayer !== player || currentPlayingUrl !== url) return;
+                            player.classList.remove('fade-out');
+                            fadeVolumeIn(player);
+                        }, 50);
+                    }).catch(error => {
+                        if (activePlayer !== player || currentPlayingUrl !== url) return;
+                        player.classList.remove('fade-out');
+                        player.volume = 1.0;
+                        playbackStatus.textContent = error.name === 'NotAllowedError'
+                            ? 'Das Gerät hat den automatischen Wiedergabestart blockiert. Tippe auf Wiedergabe, um fortzufahren.'
+                            : `Stream konnte nicht gestartet werden: ${error.message}`;
+                        playbackStatus.classList.add('show');
+                        updatePlaybackButton();
+                    });
+                }
+            }
+        }
+
+        function switchToPrevStream() {
+            const currentOptions = Array.from(playlistSelect.querySelectorAll('option')).filter(o => o.value !== "");
+            if (currentOptions.length <= 1) return;
+
+            let currentIndex = currentOptions.findIndex(o => o.value === playlistSelect.value);
+            let prevIndex = currentIndex - 1;
+            if (prevIndex < 0) {
+                prevIndex = currentOptions.length - 1; 
+            }
+
+            const prevTrackUrl = currentOptions[prevIndex].value;
+            currentRadioStation = null;
+            lastPlayerTrackUrl = prevTrackUrl;
+            playlistSelect.value = prevTrackUrl;
+            currentPlayingUrl = prevTrackUrl;
+            localStorage.setItem('lastM3UTrack', prevTrackUrl);
+            localStorage.removeItem('lastM3UTime');
+
+            skipAttempts = 0;
+            resetTimersToSelected();
+            playMedia(prevTrackUrl, 0, true);
+        }
+
+        const touchContainer = document.querySelector('.media-wrapper');
+        const mobPrevBtn = document.getElementById('mobilePrevBtn');
+        const mobNextBtn = document.getElementById('mobileNextBtn');
+
+        function updateMediaSessionMetadata() {
+            if (!navigator.mediaSession || typeof MediaMetadata === 'undefined') return;
+            const currentTrack = playlistTracks.find(track => track.url === currentPlayingUrl);
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: currentRadioStation ? currentRadioStation.name : currentTrack ? currentTrack.title : 'AgM3U Player',
+                artist: 'AgM3U'
+            });
+        }
+
+        function updateCurrentStreamInfo() {
+            const currentTrack = playlistTracks.find(track => track.url === currentPlayingUrl);
+            const streamName = currentRadioStation ? currentRadioStation.name : currentTrack ? currentTrack.title : '';
+            currentStreamInfo.textContent = streamName || 'Kein Stream ausgewählt';
+            currentStreamInfo.title = streamName ? `Wiedergabe umschalten: ${streamName}` : 'Kein Stream ausgewählt';
+        }
+
+        function updatePlaybackButton() {
+            updateCurrentStreamInfo();
+            updatePlaylistOptionHighlight();
+            const canPlay = Boolean(activePlayer && currentPlayingUrl);
+            const isPlaying = canPlay && !activePlayer.paused && !activePlayer.ended;
+            const label = isPlaying ? 'Wiedergabe stoppen' : 'Wiedergabe starten';
+            currentStreamInfo.disabled = !canPlay;
+            currentStreamInfo.classList.toggle('is-playing', isPlaying);
+            currentStreamInfo.setAttribute('aria-label', `${label}${currentStreamInfo.textContent ? `: ${currentStreamInfo.textContent}` : ''}`);
+            currentStreamInfo.setAttribute('aria-pressed', String(isPlaying));
+            if (navigator.mediaSession) {
+                navigator.mediaSession.playbackState = isPlaying ? 'playing' : canPlay ? 'paused' : 'none';
+            }
+            updateRadioStationButtons();
+        }
+
+        function updatePlaylistOptionHighlight() {
+            const rememberedTrackUrl = playlistTracks.some(track => track.url === lastPlayerTrackUrl)
+                ? lastPlayerTrackUrl
+                : '';
+            const isPlaying = Boolean(rememberedTrackUrl && !currentRadioStation &&
+                currentPlayingUrl === rememberedTrackUrl && activePlayer && !activePlayer.paused && !activePlayer.ended);
+            playlistListView.querySelectorAll('.playlist-track').forEach(button => {
+                const isCurrent = Boolean(rememberedTrackUrl && button.dataset.streamUrl === rememberedTrackUrl);
+                button.classList.toggle('is-playing', isCurrent && isPlaying);
+                button.classList.toggle('is-paused', isCurrent && !isPlaying);
+                button.setAttribute('aria-pressed', String(isCurrent));
+            });
+        }
+
+        function startCurrentStream() {
+            if (!activePlayer || !currentPlayingUrl) return;
+            const playRequest = activePlayer.play();
+            if (playRequest) {
+                playRequest.then(updatePlaybackButton).catch(error => {
+                    updatePlaybackButton();
+                    playbackStatus.textContent = `Wiedergabe konnte nicht gestartet werden: ${error.message}`;
+                    playbackStatus.classList.add('show');
+                });
+            }
+        }
+
+        function stopCurrentStream() {
+            if (!activePlayer) return;
+            activePlayer.pause();
+            try { activePlayer.currentTime = 0; } catch (err) {}
+            if (!currentRadioStation) localStorage.removeItem('lastM3UTime');
+            updatePlaybackButton();
+        }
+
+        function toggleCurrentStream() {
+            if (!activePlayer || !currentPlayingUrl) return;
+            if (activePlayer.paused || activePlayer.ended) startCurrentStream();
+            else stopCurrentStream();
+        }
+
+        function setupMediaSession() {
+            if (!navigator.mediaSession) return;
+            const handlers = {
+                play: startCurrentStream,
+                pause: stopCurrentStream,
+                stop: stopCurrentStream,
+                nexttrack: function() {
+                    skipAttempts = 0;
+                    switchToNextStream();
+                },
+                previoustrack: switchToPrevStream
+            };
+            Object.entries(handlers).forEach(([action, handler]) => {
+                try { navigator.mediaSession.setActionHandler(action, handler); } catch (err) {}
+            });
+        }
+
+        let touchStartX = 0;
+        let touchStartY = 0;
+
+        if (touchContainer) {
+            touchContainer.addEventListener('touchstart', function(e) {
+                touchStartX = e.changedTouches.screenX;
+                touchStartY = e.changedTouches.screenY;
+                touchContainer.classList.add('touch-active');
+            }, { passive: true });
+
+            touchContainer.addEventListener('touchend', function(e) {
+                const touchEndX = e.changedTouches.screenX;
+                const touchEndY = e.changedTouches.screenY;
+
+                setTimeout(() => {
+                    touchContainer.classList.remove('touch-active');
+                }, 1500);
+
+                const diffX = touchEndX - touchStartX;
+                const diffY = touchEndY - touchStartY;
+
+                if (Math.abs(diffX) > 60 && Math.abs(diffY) < 40) {
+                    if (diffX > 0) {
+                        switchToPrevStream();
+                    } else {
+                        skipAttempts = 0;
+                        switchToNextStream();
+                    }
+                }
+            }, { passive: true });
+        }
+
+        if (mobPrevBtn) {
+            mobPrevBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                switchToPrevStream();
+            });
+        }
+        if (mobNextBtn) {
+            mobNextBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                skipAttempts = 0;
+                switchToNextStream();
+            });
+        }
+        currentStreamInfo.addEventListener('click', toggleCurrentStream);
+        setupMediaSession();
+    </script>
+</body>
+</html>
