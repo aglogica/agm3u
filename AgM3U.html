@@ -8,6 +8,7 @@
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <style>
         :root {
+            
             --bg-color: #121214;
             --card-bg: #1c1c1f;
             --border-color: #3f3f46;
@@ -49,12 +50,15 @@
         .dropdown-menu.show { display: block !important; }
         .menu-title { font-size: 0.9rem; font-weight: bold; margin: 0 0 12px 0; color: #fff; border-bottom: 1px solid var(--border-color); padding-bottom: 6px; }
         .menu-label { display: block; font-size: 0.8rem; color: #a1a1aa; margin-bottom: 5px; text-align: left; }
+        .fly-toggle { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; cursor: pointer; }
         
         .timer-input-row { display: flex; gap: 6px; margin-bottom: 12px; width: 100%; }
         .timer-number-input { flex-grow: 1; padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background: #2a2a30; color: #fff; text-align: center; font-size: 0.9rem; }
         .timer-set-btn { background: var(--accent-color); color: #fff; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: bold; }
         .timer-set-btn:hover { background: #dc2626; }
         .wake-lock-status { min-height: 1.2em; margin: -6px 0 12px; color: #a1a1aa; font-size: 0.75rem; line-height: 1.4; }
+        .hearing-menu-btn { width: 100%; margin: 0 0 12px; padding: 9px 10px; border: 1px solid var(--border-color); border-radius: 6px; background: #2a2a30; color: #fff; text-align: left; cursor: pointer; }
+        .hearing-menu-btn:hover { background: #3a3a43; }
         
         input[type="file"] { width: 100%; }
         input[type="file"]::file-selector-button { background: #2a2a30; color: #fff; border: 1px solid var(--border-color); padding: 8px 16px; border-radius: 6px; cursor: pointer; width: 100%; margin-bottom: 10px; }
@@ -81,7 +85,7 @@
         .radio-station.is-paused .radio-station-details { color: #f0d7c2; }
         .radio-station-info { min-width: 0; }
         .radio-station-info[role="button"] { cursor: pointer; }
-        .radio-station-name { display: -webkit-box; color: #fff; font-weight: bold; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+        .radio-station-name { display: -webkit-box; color: #fff; font-weight: bold; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
         .radio-station-details { display: block; margin-top: 3px; color: #a1a1aa; font-size: 0.8rem; overflow-wrap: anywhere; }
         .radio-station-menu { display: none; position: absolute; z-index: 20; top: calc(100% - 4px); left: 8px; width: min(280px, calc(100% - 16px)); padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--menu-bg); box-shadow: 0 10px 15px rgba(0,0,0,0.5); box-sizing: border-box; }
         .radio-station-menu.show { display: block; }
@@ -102,6 +106,17 @@
         .radio-confirm-actions button { min-width: 76px; padding: 9px 16px; border: 0; border-radius: 6px; color: #fff; font-weight: bold; cursor: pointer; }
         .radio-confirm-yes { background: var(--accent-color); }
         .radio-confirm-no { background: #3f3f46; }
+        .hearing-dialog { width: min(520px, calc(100vw - 32px)); max-height: min(85vh, 760px); overflow-y: auto; }
+        .hearing-dialog h2 { margin: 0 0 12px; color: #fff; font-size: 1.1rem; }
+        .hearing-dialog p { line-height: 1.45; }
+        .hearing-notice { padding: 10px; border-radius: 6px; background: rgba(245, 158, 11, 0.12); color: #fcd9a3; font-size: 0.85rem; }
+        .hearing-toggle { display: flex; align-items: center; gap: 9px; margin: 16px 0; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; }
+        .hearing-test-progress { min-height: 1.4em; color: #a1a1aa; }
+        .hearing-test-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+        .hearing-test-actions button { min-height: 40px; padding: 8px 12px; border: 0; border-radius: 6px; color: #fff; font-weight: bold; cursor: pointer; }
+        .hearing-primary-btn { background: var(--accent-color); }
+        .hearing-secondary-btn { background: #3f3f46; }
+        .hearing-test-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
         #radioLoadMoreButton { display: block; margin: 10px auto 0; padding: 0 16px; }
         #radioLoadMoreButton[hidden] { display: none; }
 
@@ -142,7 +157,7 @@
         .playlist-wrapper { display: flex; flex: 1 1 0; flex-direction: column; gap: 6px; width: 100%; min-height: 0; }
         #playlistSelect { display: none; }
         .playlist-list-view { display: flex; flex: 1 1 0; flex-direction: column; gap: 5px; width: 100%; min-height: 0; margin: 6px 0 0; padding: 0 4px 0 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; box-sizing: border-box; list-style: none; }
-        .playlist-track { display: -webkit-box; width: 100%; flex: 0 0 auto; padding: 5px 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--card-bg); color: var(--text-color); font: inherit; text-align: left; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; cursor: pointer; transition: background 0.2s, border-color 0.2s; }
+        .playlist-track { display: -webkit-box; width: 100%; flex: 0 0 auto; padding: 5px 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--card-bg); color: var(--text-color); font: inherit; text-align: left; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; cursor: pointer; transition: background 0.2s, border-color 0.2s; }
         .playlist-track:hover { background: #242429; }
         .playlist-track.is-playing { background: var(--accent-color); border-color: var(--accent-color); color: #fff; }
         .playlist-track.is-paused { background: #244b63; border-color: #376985; color: #e0f2fe; }
@@ -162,6 +177,20 @@
         
         .media-wrapper { display: flex; flex-direction: column; justify-content: center; background: var(--card-bg); border-radius: 8px; padding: 10px; width: 100%; box-sizing: border-box; position: relative; }
         #videoPlayer { width: 100%; height: auto; aspect-ratio: 16/9; background: #000; border-radius: 6px; display: none; }
+        .video-fullscreen-btn { display: none; position: absolute; top: 18px; right: 18px; z-index: 1000000; width: 40px; height: 40px; align-items: center; justify-content: center; border: 0; border-radius: 6px; background: rgba(0, 0, 0, 0.65); color: #fff; cursor: pointer; }
+        .video-fullscreen-btn svg { width: 22px; height: 22px; fill: currentColor; }
+        .media-wrapper.is-video .video-fullscreen-btn { display: flex; }
+        .video-overlay-controls { display: none; position: absolute; z-index: 1000001; top: 50%; left: 50%; align-items: center; gap: 12px; transform: translate(-50%, -50%); }
+        .media-wrapper.is-video .video-overlay-controls { display: flex; }
+        .media-wrapper.is-video.controls-hidden .video-fullscreen-btn, .media-wrapper.is-video.controls-hidden .video-overlay-controls { display: none; }
+        .video-overlay-btn { display: flex; width: 48px; height: 48px; align-items: center; justify-content: center; padding: 0; border: 1px solid rgba(255,255,255,0.3); border-radius: 50%; background: rgba(0,0,0,0.68); color: #fff; cursor: pointer; }
+        .video-overlay-btn:hover { background: rgba(239,68,68,0.9); }
+        .video-overlay-btn svg { width: 24px; height: 24px; fill: currentColor; }
+        .video-overlay-btn-play { width: 58px; height: 58px; }
+        .video-overlay-btn-play svg { width: 30px; height: 30px; }
+        .media-wrapper:fullscreen, .media-wrapper:-webkit-full-screen { width: 100vw; height: 100vh; min-height: 0; padding: 0; border-radius: 0; background: #000; }
+        .media-wrapper:fullscreen #videoPlayer, .media-wrapper:-webkit-full-screen #videoPlayer { width: 100%; height: 100%; max-height: 100vh; aspect-ratio: auto; object-fit: contain; border-radius: 0; }
+        .media-wrapper:fullscreen .video-fullscreen-btn, .media-wrapper:-webkit-full-screen .video-fullscreen-btn { top: 16px; right: 16px; }
         #audioPlayer { width: 100%; height: 32px; }
         .playback-status { display: none; margin: 8px 0 0; color: #fca5a5; font-size: 0.9rem; line-height: 1.4; }
         .playback-status.show { display: block; }
@@ -208,7 +237,7 @@
 
     <!-- Oberer Header mit logischen Layoutanpassungen -->
     <div class="header-container">
-        <div class="header-title">AgM3U13</div>
+        <div class="header-title">AgM3U16</div>
         
         <div class="header-controls">
             <!-- Timer-Anzeigen links vom Kebab-Menü -->
@@ -226,7 +255,13 @@
             
             <!-- Ausklappbares Dropdown-Menü -->
             <div id="dropdownMenu" class="dropdown-menu">
-                <div class="menu-title">Einstellungen</div>
+                <div class="menu-title">(c) by A.Gaenzle</div>
+                <!--fly.js-->
+                <label class="menu-label fly-toggle" for="flyToggle">
+                    <input type="checkbox" id="flyToggle">
+                    Fliege anzeigen
+                </label>
+                <!--fly.js-->
                 <label class="menu-label">M3U Playlist(s) laden:</label>
                 <input type="file" id="m3uInput" accept=".m3u,.m3u8" multiple>
                 <span id="fileNameDisplay">Keine Datei geladen</span>
@@ -242,6 +277,7 @@
                     <input type="number" id="shuffleInput" class="timer-number-input" min="0" max="90" placeholder="0 = Aus" value="0">
                     <button id="setShuffleBtn" class="timer-set-btn">Set</button>
                 </div>
+                <button id="hearingTestOpenButton" class="hearing-menu-btn" type="button">Hörtest / Klangprofil</button>
                 <p id="wakeLockStatus" class="wake-lock-status" role="status" aria-live="polite"></p>
             </div>
         </div>
@@ -312,7 +348,21 @@
         <section class="media-column">
             <div class="media-wrapper">
                 <audio id="audioPlayer" controls style="display:none;"></audio>
-                <video id="videoPlayer" controls></video>
+                <video id="videoPlayer" controls controlsList="nofullscreen"></video>
+                <button id="videoFullscreenButton" class="video-fullscreen-btn" type="button" aria-label="Vollbild" title="Vollbild">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v2H6v4H4V4zm10 0h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm14 0h2v6h-6v-2h4v-4z"/></svg>
+                </button>
+                <div class="video-overlay-controls" role="group" aria-label="Videosteuerung">
+                    <button id="videoPreviousButton" class="video-overlay-btn" type="button" aria-label="Vorheriger Stream" title="Vorheriger Stream">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h2v14H6zm12 0v14L8 12z"/></svg>
+                    </button>
+                    <button id="videoPlayStopButton" class="video-overlay-btn video-overlay-btn-play" type="button" aria-label="Wiedergabe starten" title="Wiedergabe starten" aria-pressed="false">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                    </button>
+                    <button id="videoNextButton" class="video-overlay-btn" type="button" aria-label="Nächster Stream" title="Nächster Stream">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 5h2v14h-2zM6 5v14l10-7z"/></svg>
+                    </button>
+                </div>
                 <p id="playbackStatus" class="playback-status" role="status" aria-live="polite"></p>
             </div>
             <div class="stream-info-navigation">
@@ -354,8 +404,30 @@
             <button id="streamInfoClose" class="radio-confirm-no" type="button">Schließen</button>
         </div>
     </dialog>
+    <dialog id="hearingTestDialog" class="radio-confirm-dialog hearing-dialog" aria-labelledby="hearingTestTitle">
+        <h2 id="hearingTestTitle">Geführter Hörtest</h2>
+        <p class="hearing-notice">Dies ist eine unverbindliche Orientierungshilfe, kein medizinischer Hörtest. Die Lautstärke ist geräteabhängig: beginne leise und brich bei Unwohlsein sofort ab. Die Wiedergabe wird während des Tests angehalten. Externe Streams, die keine Audioverarbeitung erlauben, laufen später unverändert.</p>
+        <label class="hearing-toggle" for="hearingAdaptationToggle">
+            <input id="hearingAdaptationToggle" type="checkbox">
+            Hörprofil für die Wiedergabe verwenden
+        </label>
+        <p id="hearingTestStatus" class="hearing-test-progress" role="status" aria-live="polite">Der Hörtest prüft sechs Frequenzen nacheinander für jedes Ohr.</p>
+        <div id="hearingTestControls" hidden>
+            <p id="hearingTestStep"></p>
+            <div class="hearing-test-actions">
+                <button id="hearingPlayToneButton" class="hearing-secondary-btn" type="button">Ton abspielen</button>
+                <button id="hearingNotHeardButton" class="hearing-secondary-btn" type="button">Nicht gehört</button>
+                <button id="hearingHeardButton" class="hearing-primary-btn" type="button">Gehört</button>
+            </div>
+        </div>
+        <div class="hearing-test-actions">
+            <button id="hearingProfileResetButton" class="hearing-secondary-btn" type="button" hidden>Profil löschen</button>
+            <button id="hearingTestStartButton" class="hearing-primary-btn" type="button">Hörtest starten</button>
+            <button id="hearingTestCloseButton" class="hearing-secondary-btn" type="button">Schließen</button>
+        </div>
+    </dialog>
 
-    <script type="text/plain" id="bundled-christian-m3u">
+<script type="text/plain" id="bundled-christian-m3u">
 #EXTM3U
 #AGSLEP_APP: AgSlep Radio Browser
 #EXTINF:-1 tvg-logo="http://radio.pervii.com/im/6/1549421846.jpg" homepage="https://3abn.org/3abn-music-channel.html" playtime="1798",3ABN Radio Music Channel - 128 kbit/s
@@ -574,8 +646,18 @@ https://stream.purewave.ru:8443/live128.mp3
               timerStatus = document.getElementById('timerStatus'),
               shuffleStatus = document.getElementById('shuffleStatus'),
               wakeLockStatus = document.getElementById('wakeLockStatus'),
-              audioPlayer = document.getElementById('audioPlayer'),
-              videoPlayer = document.getElementById('videoPlayer'),
+              hearingTestOpenButton = document.getElementById('hearingTestOpenButton'),
+              hearingTestDialog = document.getElementById('hearingTestDialog'),
+              hearingAdaptationToggle = document.getElementById('hearingAdaptationToggle'),
+              hearingTestStatus = document.getElementById('hearingTestStatus'),
+              hearingTestControls = document.getElementById('hearingTestControls'),
+              hearingTestStep = document.getElementById('hearingTestStep'),
+              hearingTestStartButton = document.getElementById('hearingTestStartButton'),
+              hearingProfileResetButton = document.getElementById('hearingProfileResetButton'),
+              hearingTestCloseButton = document.getElementById('hearingTestCloseButton'),
+              hearingPlayToneButton = document.getElementById('hearingPlayToneButton'),
+              hearingNotHeardButton = document.getElementById('hearingNotHeardButton'),
+              hearingHeardButton = document.getElementById('hearingHeardButton'),
               playbackStatus = document.getElementById('playbackStatus'),
               currentStreamInfo = document.getElementById('currentStreamInfo'),
               fileNameDisplay = document.getElementById('fileNameDisplay'),
@@ -606,6 +688,8 @@ https://stream.purewave.ru:8443/live128.mp3
               deleteFileConfirmYes = document.getElementById('deleteFileConfirmYes'),
               deleteFileConfirmNo = document.getElementById('deleteFileConfirmNo');
 
+        let audioPlayer = document.getElementById('audioPlayer');
+        let videoPlayer = document.getElementById('videoPlayer');
         let activePlayer = null, playlistTracks = [], timerInterval = null, errorTimeout = null, currentPlayingUrl = "";
         let currentRadioStation = null;
         let lastRadioStation = null;
@@ -630,6 +714,394 @@ https://stream.purewave.ru:8443/live128.mp3
         let screenWakeLock = null, wakeLockRequestId = 0;
         let skipAttempts = 0;
         let hls = null;
+        let videoControlsHideTimer = null;
+        const hearingFrequencies = [250, 500, 1000, 2000, 4000, 8000];
+        const hearingProfileStorageKey = 'agm3uHearingProfile';
+        const hearingModeStorageKey = 'agm3uHearingMode';
+        const hearingAudioGraphs = new WeakMap();
+        const hearingCorsConfiguredUrls = new WeakMap();
+        const hearingNativeFallbackUrls = new Set();
+        let hearingAudioContext = null;
+        let activeHearingTone = null;
+        let resumeAfterHearingTest = false;
+        let hearingProfile = loadHearingProfile();
+        let hearingModeEnabled = Boolean(hearingProfile && localStorage.getItem(hearingModeStorageKey) === 'true');
+        let hearingTest = null;
+
+        function loadHearingProfile() {
+            const storedProfile = localStorage.getItem(hearingProfileStorageKey);
+            if (!storedProfile) return null;
+            try {
+                const profile = JSON.parse(storedProfile);
+                const isValidEar = ear => ear && hearingFrequencies.every(frequency =>
+                    Number.isFinite(ear[frequency]) && ear[frequency] >= 0 && ear[frequency] <= 8);
+                if (profile.version !== 1 || !isValidEar(profile.left) || !isValidEar(profile.right)) {
+                    console.warn('Das gespeicherte Hörprofil hat ein ungültiges Format.');
+                    return null;
+                }
+                return profile;
+            } catch (error) {
+                console.error('Das gespeicherte Hörprofil konnte nicht gelesen werden.', error);
+                return null;
+            }
+        }
+
+        function getHearingAudioContext() {
+            const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContextConstructor) throw new Error('Die Audioverarbeitung wird von diesem Browser nicht unterstützt.');
+            if (!hearingAudioContext) hearingAudioContext = new AudioContextConstructor();
+            return hearingAudioContext;
+        }
+
+        function canProcessMediaUrl(url, usesHlsJs) {
+            if (usesHlsJs) return true;
+            try {
+                const mediaOrigin = new URL(url, location.href).origin;
+                return location.origin !== 'null' && mediaOrigin === location.origin;
+            } catch (error) {
+                console.warn('Die Stream-Adresse konnte nicht für die Höranpassung geprüft werden.', error);
+                return false;
+            }
+        }
+
+        function canAttemptHearingProcessing(url, usesHlsJs) {
+            if (canProcessMediaUrl(url, usesHlsJs)) return true;
+            if (!hearingModeEnabled) return false;
+            try {
+                return ['http:', 'https:'].includes(new URL(url, location.href).protocol);
+            } catch (error) {
+                console.warn('Die Stream-Adresse konnte nicht für die Höranpassung geprüft werden.', error);
+                return false;
+            }
+        }
+
+        function applyHearingProfileToGraph(graph) {
+            const enabled = hearingModeEnabled && Boolean(hearingProfile);
+            graph.master.gain.setTargetAtTime(enabled ? Math.pow(10, -8 / 20) : 1, hearingAudioContext.currentTime, 0.03);
+            graph.filters.forEach((channelFilters, channelIndex) => {
+                const earProfile = channelIndex === 0 ? hearingProfile && hearingProfile.left : hearingProfile && hearingProfile.right;
+                channelFilters.forEach((filter, index) => {
+                    const gain = enabled && earProfile ? earProfile[hearingFrequencies[index]] : 0;
+                    filter.gain.setTargetAtTime(gain, hearingAudioContext.currentTime, 0.03);
+                });
+            });
+        }
+
+        function createHearingAudioGraph(player) {
+            const existingGraph = hearingAudioGraphs.get(player);
+            if (existingGraph) return existingGraph;
+            const context = getHearingAudioContext();
+            const source = context.createMediaElementSource(player);
+            const graph = { nodes: [source], master: null, filters: [[], []] };
+            hearingAudioGraphs.set(player, graph);
+
+            const splitter = context.createChannelSplitter(2);
+            const merger = context.createChannelMerger(2);
+            const master = context.createGain();
+            graph.nodes.push(splitter, merger, master);
+            graph.master = master;
+            splitter.channelInterpretation = 'speakers';
+            source.connect(splitter);
+
+            for (let channel = 0; channel < 2; channel++) {
+                let previousNode = splitter;
+                hearingFrequencies.forEach((frequency, index) => {
+                    const filter = context.createBiquadFilter();
+                    filter.type = 'peaking';
+                    filter.frequency.value = frequency;
+                    filter.Q.value = 1;
+                    graph.nodes.push(filter);
+                    graph.filters[channel].push(filter);
+                    previousNode.connect(filter, previousNode === splitter ? channel : 0, 0);
+                    previousNode = filter;
+                });
+                previousNode.connect(merger, 0, channel);
+            }
+            merger.connect(master);
+            master.connect(context.destination);
+            return graph;
+        }
+
+        function bindVideoPlayerEvents(player) {
+            player.textTracks.addEventListener('addtrack', function(event) {
+                event.track.mode = 'disabled';
+            });
+            player.addEventListener('play', showVideoControls);
+            ['pause', 'ended'].forEach(eventName => {
+                player.addEventListener(eventName, function() {
+                    clearTimeout(videoControlsHideTimer);
+                    touchContainer.classList.remove('controls-hidden');
+                });
+            });
+        }
+
+        function replaceMediaElement(player) {
+            const graph = hearingAudioGraphs.get(player);
+            if (graph) graph.nodes.forEach(node => node.disconnect());
+            const replacement = player.cloneNode(false);
+            replacement.removeAttribute('src');
+            replacement.removeAttribute('crossorigin');
+            replacement.load();
+            player.replaceWith(replacement);
+            hearingAudioGraphs.delete(player);
+            hearingCorsConfiguredUrls.delete(player);
+            if (player === audioPlayer) audioPlayer = replacement;
+            if (player === videoPlayer) {
+                videoPlayer = replacement;
+                bindVideoPlayerEvents(videoPlayer);
+            }
+            if (activePlayer === player) activePlayer = replacement;
+            return replacement;
+        }
+
+        function updateHearingControls() {
+            hearingAdaptationToggle.checked = hearingModeEnabled;
+            hearingAdaptationToggle.disabled = !hearingProfile;
+            hearingProfileResetButton.hidden = !hearingProfile;
+            hearingTestOpenButton.textContent = hearingProfile ? 'Hörtest / Klangprofil' : 'Geführten Hörtest starten';
+        }
+
+        function getCurrentMediaCanBeProcessed() {
+            const usesHlsJs = activePlayer === videoPlayer &&
+                currentPlayingUrl.includes('m3u8') &&
+                typeof Hls !== 'undefined' &&
+                Hls.isSupported();
+            return currentPlayingUrl &&
+                (canProcessMediaUrl(currentPlayingUrl, usesHlsJs) ||
+                    hearingCorsConfiguredUrls.get(activePlayer) === currentPlayingUrl);
+        }
+
+        function setHearingStatus(message) {
+            hearingTestStatus.textContent = message;
+        }
+
+        function persistHearingSettings() {
+            try {
+                if (hearingProfile) {
+                    localStorage.setItem(hearingProfileStorageKey, JSON.stringify(hearingProfile));
+                } else {
+                    localStorage.removeItem(hearingProfileStorageKey);
+                }
+                localStorage.setItem(hearingModeStorageKey, String(hearingModeEnabled));
+                return true;
+            } catch (error) {
+                console.error('Das Hörprofil konnte nicht im Browserspeicher gespeichert werden.', error);
+                return false;
+            }
+        }
+
+        async function setHearingMode(enabled) {
+            if (enabled && !hearingProfile) {
+                hearingModeEnabled = false;
+                updateHearingControls();
+                setHearingStatus('Bitte zuerst den geführten Hörtest abschließen.');
+                return;
+            }
+            hearingModeEnabled = enabled;
+            updateHearingControls();
+            const saved = persistHearingSettings();
+
+            try {
+                if (enabled) {
+                    const context = getHearingAudioContext();
+                    await context.resume();
+                    if (activePlayer && getCurrentMediaCanBeProcessed()) {
+                        const graph = createHearingAudioGraph(activePlayer);
+                        applyHearingProfileToGraph(graph);
+                        setHearingStatus(saved
+                            ? 'Hörprofil ist für diesen Stream eingeschaltet.'
+                            : 'Hörprofil ist eingeschaltet, konnte aber nicht dauerhaft gespeichert werden.');
+                    } else if (activePlayer) {
+                        setHearingStatus('Die Anpassung wird beim nächsten Start dieses externen Streams versucht. Wenn der Anbieter CORS nicht erlaubt, läuft er automatisch unverändert.');
+                    } else {
+                        setHearingStatus('Hörprofil eingeschaltet. Es wird bei unterstützten Streams angewendet.');
+                    }
+                } else {
+                    const graph = activePlayer && hearingAudioGraphs.get(activePlayer);
+                    if (graph) applyHearingProfileToGraph(graph);
+                    setHearingStatus('Originalwiedergabe ist eingeschaltet.');
+                }
+            } catch (error) {
+                hearingModeEnabled = false;
+                updateHearingControls();
+                persistHearingSettings();
+                setHearingStatus(`Höranpassung konnte nicht aktiviert werden: ${error.message}`);
+                console.error('Die Höranpassung konnte nicht aktiviert werden.', error);
+            }
+        }
+
+        function startHearingTest() {
+            stopHearingTone();
+            if (activePlayer && !activePlayer.paused) {
+                resumeAfterHearingTest = true;
+                activePlayer.pause();
+            }
+            hearingTest = { earIndex: 0, frequencyIndex: 0, levelDb: -36, tonePlayed: false, results: { left: {}, right: {} } };
+            hearingTestControls.hidden = false;
+            hearingTestStartButton.textContent = 'Hörtest neu starten';
+            updateHearingTestStep();
+        }
+
+        function updateHearingTestStep() {
+            if (!hearingTest) return;
+            const ear = hearingTest.earIndex === 0 ? 'links' : 'rechts';
+            const frequency = hearingFrequencies[hearingTest.frequencyIndex];
+            hearingTestStep.textContent = `Ohr ${ear} · ${frequency} Hz · Tonstufe ${hearingTest.levelDb} dBFS`;
+            hearingNotHeardButton.disabled = !hearingTest.tonePlayed;
+            hearingHeardButton.disabled = !hearingTest.tonePlayed;
+            setHearingStatus('Ton abspielen und danach angeben, ob er hörbar war. Bei „Nicht gehört“ wird der Ton schrittweise lauter.');
+        }
+
+        function stopHearingTone() {
+            if (!activeHearingTone) return;
+            try {
+                activeHearingTone.stop();
+            } catch (error) {
+                if (error.name !== 'InvalidStateError') console.warn('Der Hörtestton konnte nicht beendet werden.', error);
+            }
+            activeHearingTone = null;
+        }
+
+        function resumeHearingTestPlayback() {
+            stopHearingTone();
+            if (!resumeAfterHearingTest) return;
+            resumeAfterHearingTest = false;
+            if (!activePlayer) return;
+            try {
+                const playRequest = activePlayer.play();
+                if (playRequest) {
+                    playRequest.catch(error => {
+                        playbackStatus.textContent = `Wiedergabe konnte nach dem Hörtest nicht fortgesetzt werden: ${error.message}`;
+                        playbackStatus.classList.add('show');
+                    });
+                }
+            } catch (error) {
+                playbackStatus.textContent = `Wiedergabe konnte nach dem Hörtest nicht fortgesetzt werden: ${error.message}`;
+                playbackStatus.classList.add('show');
+            }
+        }
+
+        async function playHearingTestTone() {
+            if (!hearingTest) return;
+            try {
+                const context = getHearingAudioContext();
+                await context.resume();
+                if (!context.createStereoPanner) throw new Error('Getrennte Links/Rechts-Töne werden von diesem Browser nicht unterstützt.');
+                stopHearingTone();
+                const oscillator = context.createOscillator();
+                const gain = context.createGain();
+                const panner = context.createStereoPanner();
+                const frequency = hearingFrequencies[hearingTest.frequencyIndex];
+                oscillator.frequency.value = frequency;
+                panner.pan.value = hearingTest.earIndex === 0 ? -1 : 1;
+                const now = context.currentTime;
+                gain.gain.setValueAtTime(Math.pow(10, hearingTest.levelDb / 20), now);
+                gain.gain.setValueAtTime(Math.pow(10, hearingTest.levelDb / 20), now + 0.75);
+                gain.gain.linearRampToValueAtTime(0, now + 0.9);
+                oscillator.connect(gain);
+                gain.connect(panner);
+                panner.connect(context.destination);
+                activeHearingTone = oscillator;
+                oscillator.onended = function() {
+                    if (activeHearingTone === oscillator) activeHearingTone = null;
+                    oscillator.disconnect();
+                    gain.disconnect();
+                    panner.disconnect();
+                };
+                oscillator.start(now);
+                oscillator.stop(now + 0.9);
+                hearingTest.tonePlayed = true;
+                hearingNotHeardButton.disabled = false;
+                hearingHeardButton.disabled = false;
+            } catch (error) {
+                setHearingStatus(`Testton konnte nicht abgespielt werden: ${error.message}`);
+                console.error('Der Hörtestton konnte nicht abgespielt werden.', error);
+            }
+        }
+
+        async function recordHearingTestResponse(heard) {
+            if (!hearingTest || !hearingTest.tonePlayed) return;
+            stopHearingTone();
+            hearingTest.tonePlayed = false;
+            if (!heard && hearingTest.levelDb < -12) {
+                hearingTest.levelDb = Math.min(-12, hearingTest.levelDb + 4);
+                updateHearingTestStep();
+                return;
+            }
+            const ear = hearingTest.earIndex === 0 ? 'left' : 'right';
+            hearingTest.results[ear][hearingFrequencies[hearingTest.frequencyIndex]] = hearingTest.levelDb;
+            hearingTest.frequencyIndex++;
+            if (hearingTest.frequencyIndex === hearingFrequencies.length) {
+                hearingTest.frequencyIndex = 0;
+                hearingTest.earIndex++;
+            }
+            if (hearingTest.earIndex < 2) {
+                hearingTest.levelDb = -36;
+                updateHearingTestStep();
+                return;
+            }
+
+            const gains = ear => {
+                const thresholds = hearingFrequencies.map(frequency => hearingTest.results[ear][frequency]);
+                const mostSensitiveThreshold = Math.min(...thresholds);
+                return Object.fromEntries(hearingFrequencies.map(frequency => [
+                    frequency,
+                    Math.min(8, Math.max(0, (hearingTest.results[ear][frequency] - mostSensitiveThreshold) * 0.5))
+                ]));
+            };
+            hearingProfile = { version: 1, left: gains('left'), right: gains('right') };
+            hearingModeEnabled = true;
+            const saved = persistHearingSettings();
+            updateHearingControls();
+            hearingTest = null;
+            hearingTestControls.hidden = true;
+            setHearingStatus(saved
+                ? 'Hörtest abgeschlossen. Das getrennte Links/Rechts-Hörprofil wurde gespeichert und eingeschaltet.'
+                : 'Hörtest abgeschlossen. Das Profil ist aktiv, konnte aber nicht im Browserspeicher gespeichert werden.');
+            await setHearingMode(true);
+            resumeHearingTestPlayback();
+        }
+
+        function resetHearingProfile() {
+            hearingModeEnabled = false;
+            hearingProfile = null;
+            hearingTest = null;
+            hearingTestControls.hidden = true;
+            const graph = activePlayer && hearingAudioGraphs.get(activePlayer);
+            if (graph) applyHearingProfileToGraph(graph);
+            updateHearingControls();
+            setHearingStatus(persistHearingSettings()
+                ? 'Hörprofil gelöscht; der Player verwendet wieder die Originalwiedergabe.'
+                : 'Hörprofil wurde für diese Sitzung entfernt, konnte aber nicht aus dem Browserspeicher gelöscht werden.');
+            resumeHearingTestPlayback();
+        }
+
+        hearingTestOpenButton.addEventListener('click', function() {
+            updateHearingControls();
+            if (!hearingTest) {
+                setHearingStatus(hearingProfile
+                    ? hearingModeEnabled ? 'Ein gespeichertes Hörprofil ist verfügbar und eingeschaltet.' : 'Ein gespeichertes Hörprofil ist verfügbar, aber ausgeschaltet.'
+                    : 'Der Hörtest prüft sechs Frequenzen nacheinander für jedes Ohr.');
+            }
+            hearingTestDialog.showModal();
+        });
+        hearingTestCloseButton.addEventListener('click', function() {
+            hearingTestDialog.close();
+        });
+        hearingTestDialog.addEventListener('close', resumeHearingTestPlayback);
+        hearingAdaptationToggle.addEventListener('change', function() {
+            setHearingMode(hearingAdaptationToggle.checked);
+        });
+        hearingTestStartButton.addEventListener('click', startHearingTest);
+        hearingProfileResetButton.addEventListener('click', resetHearingProfile);
+        hearingPlayToneButton.addEventListener('click', playHearingTestTone);
+        hearingNotHeardButton.addEventListener('click', function() {
+            recordHearingTestResponse(false);
+        });
+        hearingHeardButton.addEventListener('click', function() {
+            recordHearingTestResponse(true);
+        });
+        updateHearingControls();
 
         // Dropdown Toggle Funktion
         function toggleDropdown(e) {
@@ -2442,15 +2914,60 @@ https://stream.purewave.ru:8443/live128.mp3
 
         function setupNewMedia(url, time, triggerPlay) {
             const isVid = /\.(mp4|m3u8|webm|ts)/i.test(url) || url.includes('type=video') || url.includes('m3u8') || url.includes('.ts');
+            const usesHlsJs = isVid &&
+                (url.includes('m3u8') || url.endsWith('.m3u8')) &&
+                typeof Hls !== 'undefined' &&
+                Hls.isSupported();
+            const requiresNativeFallback = hearingNativeFallbackUrls.delete(url);
+            const mediaCanBeProcessed = !requiresNativeFallback && canAttemptHearingProcessing(url, usesHlsJs);
+            let player = isVid ? videoPlayer : audioPlayer;
+            if (hearingAudioGraphs.has(player) && !mediaCanBeProcessed) {
+                player = replaceMediaElement(player);
+            }
+            if (mediaCanBeProcessed && hearingModeEnabled && !usesHlsJs && !canProcessMediaUrl(url, false)) {
+                player.crossOrigin = 'anonymous';
+                hearingCorsConfiguredUrls.set(player, url);
+            } else if (!hearingAudioGraphs.has(player)) {
+                player.removeAttribute('crossorigin');
+                hearingCorsConfiguredUrls.delete(player);
+            }
             audioPlayer.style.display = isVid ? 'none' : 'block';
             videoPlayer.style.display = isVid ? 'block' : 'none';
+            const mediaWrapper = videoPlayer.closest('.media-wrapper');
+            mediaWrapper.classList.toggle('is-video', isVid);
+            mediaWrapper.classList.remove('controls-hidden');
+            clearTimeout(videoControlsHideTimer);
+            if (isVid) {
+                Array.from(videoPlayer.textTracks).forEach(track => {
+                    track.mode = 'disabled';
+                });
+            }
 
-            activePlayer = isVid ? videoPlayer : audioPlayer;
+            activePlayer = player;
             updateMediaSessionMetadata();
             updatePlaybackButton();
 
+            if (mediaCanBeProcessed && (hearingModeEnabled || hearingAudioGraphs.has(activePlayer))) {
+                try {
+                    const graph = createHearingAudioGraph(activePlayer);
+                    applyHearingProfileToGraph(graph);
+                    hearingAudioContext.resume().catch(error => {
+                        console.warn('Der Audio-Kontext für das Hörprofil konnte nicht fortgesetzt werden.', error);
+                    });
+                    if (hearingModeEnabled) setHearingStatus('Hörprofil ist für diesen Stream eingeschaltet.');
+                } catch (error) {
+                    player = replaceMediaElement(activePlayer);
+                    activePlayer = player;
+                    playbackStatus.textContent = `Höranpassung konnte nicht aktiviert werden: ${error.message}`;
+                    playbackStatus.classList.add('show');
+                    console.error('Die Höranpassung konnte für diesen Stream nicht aktiviert werden.', error);
+                }
+            } else if (hearingModeEnabled && !mediaCanBeProcessed) {
+                setHearingStatus('Dieser Stream erlaubt keine sichere Audioanpassung. Er wird unverändert abgespielt; das Hörprofil bleibt für unterstützte Streams aktiv.');
+            }
+
             if (isVid && (url.includes('m3u8') || url.endsWith('.m3u8'))) {
-                if (Hls.isSupported()) {
+                if (usesHlsJs) {
                     hls = new Hls();
                     hls.loadSource(url);
                     hls.attachMedia(activePlayer);
@@ -2471,6 +2988,18 @@ https://stream.purewave.ru:8443/live128.mp3
             activePlayer.onerror = function() {
                 if (!triggerPlay || !currentPlayingUrl) return;
                 clearTimeout(errorTimeout);
+                if (!usesHlsJs &&
+                    hearingModeEnabled &&
+                    hearingAudioGraphs.has(activePlayer) &&
+                    hearingCorsConfiguredUrls.get(activePlayer) === url &&
+                    !hearingNativeFallbackUrls.has(url)) {
+                    hearingNativeFallbackUrls.add(url);
+                    const fallbackTime = activePlayer.currentTime || time;
+                    playbackStatus.textContent = 'Dieser Stream erlaubt keine Audioanpassung. Wechsle auf unveränderte Wiedergabe ...';
+                    playbackStatus.classList.add('show');
+                    setupNewMedia(url, fallbackTime, triggerPlay);
+                    return;
+                }
                 errorTimeout = setTimeout(function() {
                     if (!activePlayer.src && !hls || !currentPlayingUrl) return;
                     if (activePlayer.error || activePlayer.paused) {
@@ -2521,6 +3050,11 @@ https://stream.purewave.ru:8443/live128.mp3
 
             activePlayer.addEventListener('loadedmetadata', function() {
                 if (!url || !currentPlayingUrl) return;
+                if (isVid) {
+                    Array.from(videoPlayer.textTracks).forEach(track => {
+                        track.mode = 'disabled';
+                    });
+                }
                 activePlayer.currentTime = time;
                 if (!triggerPlay) {
                     activePlayer.classList.remove('fade-out'); activePlayer.volume = 1.0;
@@ -2579,6 +3113,24 @@ https://stream.purewave.ru:8443/live128.mp3
         const touchContainer = document.querySelector('.media-wrapper');
         const mobPrevBtn = document.getElementById('mobilePrevBtn');
         const mobNextBtn = document.getElementById('mobileNextBtn');
+        const videoPreviousButton = document.getElementById('videoPreviousButton');
+        const videoPlayStopButton = document.getElementById('videoPlayStopButton');
+        const videoNextButton = document.getElementById('videoNextButton');
+
+        function showVideoControls() {
+            clearTimeout(videoControlsHideTimer);
+            touchContainer.classList.remove('controls-hidden');
+            if (activePlayer === videoPlayer && !videoPlayer.paused && !videoPlayer.ended) {
+                videoControlsHideTimer = window.setTimeout(function() {
+                    touchContainer.classList.add('controls-hidden');
+                }, 3000);
+            }
+        }
+
+        ['pointermove', 'pointerdown', 'click'].forEach(eventName => {
+            touchContainer.addEventListener(eventName, showVideoControls);
+        });
+        bindVideoPlayerEvents(videoPlayer);
 
         function updateMediaSessionMetadata() {
             if (!navigator.mediaSession || typeof MediaMetadata === 'undefined') return;
@@ -2606,6 +3158,13 @@ https://stream.purewave.ru:8443/live128.mp3
             currentStreamInfo.classList.toggle('is-playing', isPlaying);
             currentStreamInfo.setAttribute('aria-label', `${label}${currentStreamInfo.textContent ? `: ${currentStreamInfo.textContent}` : ''}`);
             currentStreamInfo.setAttribute('aria-pressed', String(isPlaying));
+            const videoButtonLabel = isPlaying ? 'Wiedergabe stoppen' : 'Wiedergabe starten';
+            videoPlayStopButton.setAttribute('aria-label', videoButtonLabel);
+            videoPlayStopButton.title = videoButtonLabel;
+            videoPlayStopButton.setAttribute('aria-pressed', String(isPlaying));
+            videoPlayStopButton.innerHTML = isPlaying
+                ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h12v12H6z"/></svg>'
+                : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
             if (navigator.mediaSession) {
                 navigator.mediaSession.playbackState = isPlaying ? 'playing' : canPlay ? 'paused' : 'none';
             }
@@ -2714,8 +3273,402 @@ https://stream.purewave.ru:8443/live128.mp3
                 switchToNextStream();
             });
         }
+        videoPreviousButton.addEventListener('click', switchToPrevStream);
+        videoPlayStopButton.addEventListener('click', toggleCurrentStream);
+        videoNextButton.addEventListener('click', function() {
+            skipAttempts = 0;
+            switchToNextStream();
+        });
         currentStreamInfo.addEventListener('click', toggleCurrentStream);
         setupMediaSession();
     </script>
+    <!--fly.js-->
+    <!--script src="./fly.js"></script-->
+    
+    <script>
+        (function () {
+        if (window.__laziFlyInit) return;
+        window.__laziFlyInit = true;
+        if (window.matchMedia('(hover: none)').matches) return;
+
+        var el = document.createElement('div');
+        el.style.cssText = 'position:fixed;z-index:999999;pointer-events:auto;cursor:default;width:32px;height:32px;will-change:transform;top:0;left:0;';
+        el.innerHTML = '<svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">' +
+            '<ellipse cx="5.5" cy="7" rx="5" ry="2.8" fill="rgba(190,210,230,0.5)" transform="rotate(-20 5.5 7)"/>' +
+            '<ellipse cx="14.5" cy="7" rx="5" ry="2.8" fill="rgba(190,210,230,0.5)" transform="rotate(20 14.5 7)"/>' +
+            '<ellipse cx="10" cy="12" rx="2.8" ry="4.2" fill="#1a1a1a" stroke="#dbeafe" stroke-width="0.7"/>' +
+            '<ellipse cx="10" cy="7" rx="2.2" ry="2.2" fill="#111" stroke="#dbeafe" stroke-width="0.7"/>' +
+            '<circle cx="8.8" cy="6.5" r="0.9" fill="#ff3636"/>' +
+            '<circle cx="11.2" cy="6.5" r="0.9" fill="#ff3636"/>' +
+            '</svg>';
+        document.querySelector('.media-wrapper').appendChild(el);
+
+        var W = window.innerWidth, H = window.innerHeight;
+        var x = W * 0.5, y = H * 0.5;
+        var vx = 0, vy = 0;
+        var cx = W * 0.5, cy = H * 0.5;
+        var cvx = 0, cvy = 0, lastCx = cx, lastCy = cy;
+        var rx = x, ry = y;
+        var angle = 90;
+        var orbitAngle = 0;
+        var walkTx = null, walkTy = null;
+        var roamIsCta = false;
+        var ctaRect = null;
+        var state = 'tracking';
+        var stateMs = 0;
+        var t = 0;
+        var burstSpd = 0.9, burstMs = 0;
+        var freezeMs = 0;
+        var alive = true;
+        // Die Fliege bleibt aus, bis sie über die Checkbox aktiviert wird.
+        var enabled = false;
+        var respawnTimer = null;
+
+        var CTA_SEL = '.btn-primary, .seat-cta, .header-sticky-btn, .cta-small, .ms-btn, .infotag-cta';
+
+        function show() { el.style.display = ''; }
+        function hide() { el.style.display = 'none'; }
+
+        function squish() {
+            if (!alive) return;
+            alive = false;
+            hide();
+            var sa = Math.round(Math.random() * 360);
+            var splat = document.createElement('div');
+            splat.style.cssText = 'position:fixed;z-index:999998;pointer-events:none;transition:opacity 0.8s;' +
+            'left:' + (x - 20) + 'px;top:' + (y - 20) + 'px;width:40px;height:40px;';
+            splat.innerHTML = '<svg width="40" height="40" viewBox="0 0 40 40"><g opacity="0.85">' +
+            '<ellipse cx="20" cy="20" rx="11" ry="7"   fill="#7a0000" transform="rotate(' + sa          + ' 20 20)"/>' +
+            '<ellipse cx="13" cy="14" rx="5"  ry="3"   fill="#5c0000" transform="rotate(' + (sa + 55)   + ' 13 14)"/>' +
+            '<ellipse cx="28" cy="15" rx="4"  ry="2.5" fill="#5c0000" transform="rotate(' + (sa - 40)   + ' 28 15)"/>' +
+            '<ellipse cx="14" cy="28" rx="4"  ry="2"   fill="#5c0000"/>' +
+            '<ellipse cx="27" cy="27" rx="3"  ry="2"   fill="#5c0000" transform="rotate(30 27 27)"/>' +
+            '</g></svg>';
+            document.body.appendChild(splat);
+            setTimeout(function () { splat.style.opacity = '0'; }, 1200);
+            setTimeout(function () { splat.remove(); }, 2200);
+
+            respawnTimer = window.setTimeout(function () {
+            respawnTimer = null;
+            if (enabled) spawnAtRandomPosition();
+            }, 5000 + Math.random() * 5000);
+        }
+
+        function visibleCtaBtns() {
+            var vh = window.innerHeight;
+            return Array.from(document.querySelectorAll(CTA_SEL)).filter(function (b) {
+            var r = b.getBoundingClientRect();
+            return r.width > 0 && r.top >= 0 && r.bottom <= vh;
+            });
+        }
+
+        function pickCta(btns) {
+            var pool = [];
+            btns.forEach(function (b) {
+            pool.push(b);
+            if (b.classList.contains('infotag-cta') || b.classList.contains('header-sticky-btn')) pool.push(b);
+            });
+            return pool[Math.floor(Math.random() * pool.length)];
+        }
+
+        function newRoamTarget() {
+            roamIsCta = false; ctaRect = null;
+            var visible = visibleCtaBtns();
+            if (visible.length && Math.random() < 0.72) {
+            var btn = pickCta(visible);
+            var r = btn.getBoundingClientRect();
+            rx = r.left + r.width * 0.5;
+            ry = r.top  + r.height * 0.5;
+            roamIsCta = true; ctaRect = r;
+            return;
+            }
+            rx = 80 + Math.random() * (window.innerWidth  - 160);
+            ry = 80 + Math.random() * (window.innerHeight - 160);
+        }
+
+        function spawnAtRandomPosition() {
+            alive = true;
+            x = 20 + Math.random() * Math.max(1, window.innerWidth - 40);
+            y = 20 + Math.random() * Math.max(1, window.innerHeight - 40);
+            vx = 0; vy = 0;
+            state = 'roaming'; stateMs = 5000;
+            newRoamTarget();
+            show();
+        }
+
+        el.addEventListener('click', squish);
+
+        document.addEventListener('mousemove', function (e) {
+            cvx = e.clientX - lastCx; cvy = e.clientY - lastCy;
+            lastCx = e.clientX; lastCy = e.clientY;
+            cx = e.clientX; cy = e.clientY;
+        });
+
+        // Global control API for the menu checkbox
+        window.laziFly = {
+            enable: function () {
+            enabled = true;
+            if (respawnTimer) clearTimeout(respawnTimer);
+            respawnTimer = null;
+            spawnAtRandomPosition();
+            window.dispatchEvent(new CustomEvent('laziFlyState', { detail: { enabled: true } }));
+            },
+            disable: function () {
+            enabled = false;
+            if (respawnTimer) clearTimeout(respawnTimer);
+            respawnTimer = null;
+            hide();
+            window.dispatchEvent(new CustomEvent('laziFlyState', { detail: { enabled: false } }));
+            },
+            isEnabled: function () { return enabled; },
+        };
+
+        var last = performance.now();
+
+        function tick(now) {
+            var dt = Math.min(now - last, 50);
+            last = now;
+            if (!alive || !enabled) { requestAnimationFrame(tick); return; }
+            t += dt;
+            stateMs -= dt;
+
+            var ddx = cx - x, ddy = cy - y;
+            var distToCursor = Math.sqrt(ddx * ddx + ddy * ddy);
+            var cursorSpd    = Math.sqrt(cvx * cvx + cvy * cvy);
+            if (distToCursor < 90 && cursorSpd > 12) {
+            var dodgeAng = Math.atan2(y - cy, x - cx) + (Math.random() - 0.5);
+            vx = Math.cos(dodgeAng) * (5 + Math.random() * 4);
+            vy = Math.sin(dodgeAng) * (5 + Math.random() * 4);
+            x += vx * 2; y += vy * 2;
+            if (state === 'resting' || state === 'onbutton') { state = 'tracking'; freezeMs = 0; }
+            burstSpd = 5 + Math.random() * 2; burstMs = 200 + Math.random() * 300;
+            }
+
+            burstMs -= dt;
+            if (burstMs <= 0) {
+            var roll = Math.random();
+            if      (roll < 0.15) { burstSpd = 6.5 + Math.random() * 2.0; burstMs =  50 + Math.random() * 150; }
+            else if (roll < 0.38) { burstSpd = 4.0 + Math.random() * 1.2; burstMs = 100 + Math.random() * 200; }
+            else if (roll < 0.65) { burstSpd = 2.5 + Math.random() * 1.0; burstMs = 150 + Math.random() * 250; }
+            else                  { burstSpd = 1.2 + Math.random() * 0.6; burstMs =  80 + Math.random() * 160; }
+            }
+
+            if (state === 'roaming' && freezeMs <= 0 && Math.random() < 0.022) {
+            freezeMs = 400 + Math.random() * 1600;
+            }
+            if (freezeMs > 0) {
+            freezeMs -= dt;
+            var jx = (Math.random() - 0.5) * 0.8;
+            var jy = (Math.random() - 0.5) * 0.8 + Math.sin(t * 0.003) * 0.5;
+            el.style.transform = 'translate(' + (x - 10 + jx) + 'px,' + (y - 10 + jy) + 'px) rotate(' + angle + 'deg)';
+            if (freezeMs <= 0) {
+                var joltAng = Math.random() * Math.PI * 2;
+                vx = Math.cos(joltAng) * (2.5 + Math.random() * 2.5);
+                vy = Math.sin(joltAng) * (2.5 + Math.random() * 2.5);
+                burstSpd = 4 + Math.random() * 2; burstMs = 80 + Math.random() * 150;
+            }
+            requestAnimationFrame(tick);
+            return;
+            }
+
+            if (state === 'roaming' && !roamIsCta && Math.random() < 0.0022) { newRoamTarget(); }
+            if (state === 'tracking' && Math.random() < 0.0025) {
+            var urgent = visibleCtaBtns();
+            if (urgent.length) {
+                var ub = pickCta(urgent), ur = ub.getBoundingClientRect();
+                rx = ur.left + ur.width * 0.5; ry = ur.top + ur.height * 0.5;
+                roamIsCta = true; ctaRect = ur;
+                state = 'roaming'; stateMs = 8000;
+            }
+            }
+
+            if (state === 'resting') {
+            var bob = Math.sin(t * 0.004) * 0.7;
+            var jx = (Math.random() - 0.5) * 0.4, jy = (Math.random() - 0.5) * 0.4;
+            el.style.transform = 'translate(' + (x - 10 + jx) + 'px,' + (y - 10 + bob + jy) + 'px) rotate(' + angle + 'deg)';
+            if (stateMs <= 0) {
+                if (Math.random() < 0.25) {
+                state = 'annoying'; stateMs = 4000 + Math.random() * 5000;
+                orbitAngle = Math.random() * Math.PI * 2;
+                } else {
+                state = 'roaming'; stateMs = 6000 + Math.random() * 9000;
+                newRoamTarget();
+                }
+            }
+
+            } else if (state === 'annoying') {
+            orbitAngle += dt * (0.005 + Math.sin(t * 0.003) * 0.0015 + Math.random() * 0.003);
+            var pulseR = 30 + Math.sin(t * 0.007) * 14;
+            if (Math.sin(t * 0.014) > 0.82) pulseR = 4 + Math.random() * 8;
+            var goalX = cx + Math.cos(orbitAngle) * pulseR + (Math.random() - 0.5) * 5;
+            var goalY = cy + Math.sin(orbitAngle) * pulseR + (Math.random() - 0.5) * 5;
+            var adx = goalX - x, ady = goalY - y, adist = Math.sqrt(adx * adx + ady * ady) || 1;
+            var aspd = 2.6 + Math.random() * 1.4;
+            vx = vx * 0.68 + (adx / adist) * aspd * 0.32 + (Math.random() - 0.5) * 1.1;
+            vy = vy * 0.68 + (ady / adist) * aspd * 0.32 + (Math.random() - 0.5) * 1.1;
+            x += vx; y += vy;
+            angle = Math.atan2(vy, vx) * 180 / Math.PI + 90;
+            var vmag = Math.sqrt(vx * vx + vy * vy);
+            var flutter = 1 + Math.sin(t * (0.06 + Math.min(vmag * 0.008, 0.06))) * (0.10 + Math.min(vmag * 0.015, 0.18));
+            el.style.transform = 'translate(' + (x - 10) + 'px,' + (y - 10) + 'px) rotate(' + angle + 'deg) scaleX(' + flutter + ')';
+            if (stateMs <= 0) { state = 'roaming'; stateMs = 5000 + Math.random() * 7000; newRoamTarget(); }
+
+            } else if (state === 'onbutton') {
+            var r = ctaRect;
+            var bcx = r ? r.left + r.width  * 0.5 : rx;
+            var bcy = r ? r.top  + r.height * 0.5 : ry;
+            var bHalf = r ? Math.min(r.width, r.height) * 0.45 : 12;
+            if (Math.random() < 0.007) { freezeMs = 500 + Math.random() * 1400; }
+            if (!walkTx || Math.sqrt((walkTx - x) * (walkTx - x) + (walkTy - y) * (walkTy - y)) < 3) {
+                walkTx = bcx + (Math.random() - 0.5) * bHalf * 2;
+                walkTy = bcy + (Math.random() - 0.5) * bHalf * 2;
+            }
+            var wdx = walkTx - x, wdy = walkTy - y, wdist = Math.sqrt(wdx * wdx + wdy * wdy) || 1;
+            var wspd = 0.25 + Math.random() * 0.45;
+            vx = vx * 0.75 + (wdx / wdist) * wspd * 0.25 + (Math.random() - 0.5) * 0.12;
+            vy = vy * 0.75 + (wdy / wdist) * wspd * 0.25 + (Math.random() - 0.5) * 0.12;
+            x += vx; y += vy;
+            angle = Math.atan2(vy, vx) * 180 / Math.PI + 90;
+            var jx = (Math.random() - 0.5) * 0.35, jy = (Math.random() - 0.5) * 0.35;
+            el.style.transform = 'translate(' + (x - 10 + jx) + 'px,' + (y - 10 + jy) + 'px) rotate(' + angle + 'deg)';
+            if (stateMs <= 0) { state = 'tracking'; roamIsCta = false; walkTx = null; walkTy = null; }
+
+            } else {
+            var goalX = (state === 'roaming') ? rx : cx;
+            var goalY = (state === 'roaming') ? ry : cy;
+            var dx = goalX - x, dy = goalY - y;
+            var dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 14) {
+                if (state === 'tracking') {
+                state = 'resting'; stateMs = 400 + Math.random() * 1000;
+                } else if (roamIsCta) {
+                state = 'onbutton'; stateMs = 2500 + Math.random() * 3000;
+                walkTx = null; walkTy = null;
+                var freshBtn = document.elementFromPoint(rx, ry);
+                if (freshBtn) { var closest = freshBtn.closest(CTA_SEL); if (closest) ctaRect = closest.getBoundingClientRect(); }
+                } else {
+                if (stateMs <= 0) { state = 'tracking'; } else { newRoamTarget(); }
+                }
+            } else {
+                var spd  = burstSpd * (0.6 + Math.random() * 0.9) + Math.random() * 0.3;
+                var damp = burstSpd > 2 ? 0.70 : 0.76;
+                var perpX = 0, perpY = 0;
+                if (roamIsCta && dist < 60) {
+                var spiral = (1 - dist / 60) * 0.55;
+                perpX = (-dy / dist) * spiral * spd;
+                perpY = ( dx / dist) * spiral * spd;
+                }
+                vx = vx * damp + (dx / dist) * spd * (1 - damp) + perpX * (1 - damp) + (Math.random() - 0.5) * 0.55 * burstSpd;
+                vy = vy * damp + (dy / dist) * spd * (1 - damp) + perpY * (1 - damp) + (Math.random() - 0.5) * 0.50 * burstSpd;
+                x += vx; y += vy;
+                angle = Math.atan2(vy, vx) * 180 / Math.PI + 90;
+            }
+            var vmag = Math.sqrt(vx * vx + vy * vy);
+            var flutter = 1 + Math.sin(t * (0.04 + Math.min(vmag * 0.007, 0.06))) * (0.06 + Math.min(vmag * 0.012, 0.16));
+            el.style.transform = 'translate(' + (x - 10) + 'px,' + (y - 10) + 'px) rotate(' + angle + 'deg) scaleX(' + flutter + ')';
+            }
+
+            requestAnimationFrame(tick);
+        }
+
+        // Start hidden — button in UI controls visibility
+        hide();
+        enabled = false;
+        setTimeout(function () { requestAnimationFrame(tick); }, 500);
+        }());
+
+    </script>
+
+    <script>
+        const mediaWrapper = document.querySelector('.media-wrapper');
+        const videoFullscreenButton = document.getElementById('videoFullscreenButton');
+
+        function isMediaWrapperFullscreen() {
+            return document.fullscreenElement === mediaWrapper || document.webkitFullscreenElement === mediaWrapper;
+        }
+
+        function updateFullscreenButton() {
+            const isFullscreen = isMediaWrapperFullscreen();
+            const label = isFullscreen ? 'Vollbild beenden' : 'Vollbild';
+            videoFullscreenButton.setAttribute('aria-label', label);
+            videoFullscreenButton.title = label;
+        }
+
+        videoFullscreenButton.addEventListener('click', async function () {
+            try {
+                if (isMediaWrapperFullscreen()) {
+                    const exitFullscreen = document.exitFullscreen || document.webkitExitFullscreen;
+                    if (exitFullscreen) await exitFullscreen.call(document);
+                    return;
+                }
+
+                const requestFullscreen = mediaWrapper.requestFullscreen || mediaWrapper.webkitRequestFullscreen;
+                if (!requestFullscreen) {
+                    playbackStatus.textContent = 'Vollbild wird von diesem Browser nicht unterstützt.';
+                    playbackStatus.classList.add('show');
+                    return;
+                }
+                await requestFullscreen.call(mediaWrapper);
+            } catch (error) {
+                console.warn('Der Vollbildmodus konnte nicht geändert werden.', error);
+                playbackStatus.textContent = `Vollbild konnte nicht geändert werden: ${error.message}`;
+                playbackStatus.classList.add('show');
+            }
+        });
+
+        document.addEventListener('fullscreenchange', updateFullscreenButton);
+        document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
+    </script>
+
+    <script>
+        const flyToggle = document.getElementById('flyToggle');
+        const flyStorageKey = 'laziFlyEnabled';
+        let savedFlyEnabled = true;
+        let flyStartTimer = null;
+        try {
+            const storedFlyEnabled = localStorage.getItem(flyStorageKey);
+            if (storedFlyEnabled !== null) {
+                savedFlyEnabled = storedFlyEnabled === 'true';
+            }
+        } catch (error) {
+            console.warn('Der Fliegen-Zustand konnte nicht geladen werden.', error);
+        }
+
+        if (window.laziFly) {
+            flyToggle.checked = savedFlyEnabled;
+            if (savedFlyEnabled) {
+                //const startDelay = 5000 + Math.random() * 5000;
+                const startDelay = 30000 + Math.random() * 30000;
+                flyStartTimer = window.setTimeout(function () {
+                    if (flyToggle.checked && !window.laziFly.isEnabled()) {
+                        window.laziFly.enable();
+                    }
+                }, startDelay);
+            }
+            flyToggle.addEventListener('change', function () {
+                if (flyStartTimer !== null) {
+                    window.clearTimeout(flyStartTimer);
+                    flyStartTimer = null;
+                }
+                if (flyToggle.checked) {
+                    window.laziFly.enable();
+                } else {
+                    window.laziFly.disable();
+                }
+            });
+            window.addEventListener('laziFlyState', function (event) {
+                flyToggle.checked = event.detail.enabled;
+                try {
+                    localStorage.setItem(flyStorageKey, String(event.detail.enabled));
+                } catch (error) {
+                    console.warn('Der Fliegen-Zustand konnte nicht gespeichert werden.', error);
+                }
+            });
+        } else {
+            flyToggle.disabled = true;
+            flyToggle.title = 'Die Fliege ist auf Touch-Geräten nicht verfügbar.';
+        }
+    </script>
+    <!--fly.js-->
 </body>
 </html>
